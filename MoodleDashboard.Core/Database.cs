@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using MoodleDashboard.Core.Univie;
 
 namespace MoodleDashboard.Core;
 
@@ -22,6 +23,14 @@ public class Database
         CREATE TABLE IF NOT EXISTS notifications_sent(assignment_id INTEGER, kind TEXT, key TEXT, sent_at INTEGER,
             PRIMARY KEY(assignment_id, kind, key));
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS enrolments(key TEXT PRIMARY KEY, lvnr TEXT, group_nr TEXT, semester TEXT, title TEXT, type TEXT, status TEXT,
+            immanent INTEGER, study_name TEXT, moodle_url TEXT, moodle_course_id INTEGER, lecturers_json TEXT, waitlist_pos INTEGER,
+            ufind_link TEXT, remark TEXT, ufind_version TEXT, ufind_json TEXT, ufind_fetched_at INTEGER, content_hash TEXT,
+            last_seen_at INTEGER, active INTEGER DEFAULT 1, unseen_change INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS univie_sessions(session_key TEXT PRIMARY KEY, enrolment_key TEXT, begin_at INTEGER, end_at INTEGER, room TEXT,
+            hash TEXT, status INTEGER, change INTEGER, first_seen_at INTEGER, last_changed_at INTEGER, prev_begin INTEGER, prev_end INTEGER, prev_room TEXT);
+        CREATE INDEX IF NOT EXISTS idx_univie_sessions_enr ON univie_sessions(enrolment_key);
+        CREATE TABLE IF NOT EXISTS enrolment_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT, enrolment_key TEXT, taken_at INTEGER, hash TEXT, json TEXT, change_kinds TEXT);
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, title TEXT, start_at INTEGER, end_at INTEGER, all_day INTEGER,
             location TEXT, description TEXT, url TEXT, source TEXT, course_name TEXT);
         """);
@@ -201,6 +210,150 @@ public class Database
                 ("$id", e.Id), ("$t", e.Title), ("$s", e.Start.ToUnixTimeSeconds()), ("$e", e.End.ToUnixTimeSeconds()),
                 ("$a", e.AllDay ? 1 : 0), ("$l", e.Location), ("$d", e.Description), ("$u", e.Url), ("$src", e.Source), ("$cn", e.CourseName));
         tx.Commit();
+    }
+
+    // ---- univie enrolments / sessions
+    const string EnrCols = "key,lvnr,group_nr,semester,title,type,status,immanent,study_name,moodle_url,moodle_course_id,lecturers_json,waitlist_pos,ufind_link,remark,ufind_version,ufind_json,ufind_fetched_at,content_hash,last_seen_at,active,unseen_change";
+
+    static EnrolmentRecord ReadEnr(SqliteDataReader r)
+    {
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        return new()
+        {
+            Key = r.GetString(0), LvNr = S(1) ?? "", GroupNr = S(2) ?? "", Semester = S(3) ?? "", Title = S(4) ?? "", Type = S(5) ?? "", Status = S(6) ?? "",
+            Immanent = r.GetInt32(7) != 0, StudyName = S(8), MoodleUrl = S(9), MoodleCourseId = r.IsDBNull(10) ? null : r.GetInt64(10),
+            LecturersJson = S(11) ?? "[]", WaitlistPosition = r.IsDBNull(12) ? null : r.GetInt32(12), UfindLink = S(13), Remark = S(14),
+            UfindVersion = S(15), UfindJson = S(16) ?? "", UfindFetchedAt = r.IsDBNull(17) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(17)),
+            ContentHash = S(18) ?? "", LastSeenAt = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(19)), Active = r.GetInt32(20) != 0, UnseenChange = r.GetInt32(21) != 0,
+        };
+    }
+
+    public List<EnrolmentRecord> GetEnrolments(bool activeOnly = true)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {EnrCols} FROM enrolments" + (activeOnly ? " WHERE active=1" : "") + " ORDER BY semester DESC, title";
+        using var r = cmd.ExecuteReader();
+        var l = new List<EnrolmentRecord>();
+        while (r.Read()) l.Add(ReadEnr(r));
+        return l;
+    }
+
+    public EnrolmentRecord? GetEnrolment(string key)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {EnrCols} FROM enrolments WHERE key=$k";
+        cmd.Parameters.AddWithValue("$k", key);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadEnr(r) : null;
+    }
+
+    /// <summary>Saves enrolment + its sessions (+ optional snapshot) in one short transaction.</summary>
+    public void SaveEnrolment(EnrolmentRecord e, IReadOnlyList<SessionRecord>? sessions, string? snapshotJson, string? changeKinds)
+    {
+        using var c = Open();
+        using var tx = c.BeginTransaction();
+        Exec(c, $"""
+            INSERT INTO enrolments({EnrCols}) VALUES($key,$lv,$gn,$sem,$t,$ty,$st,$im,$sn,$mu,$mi,$lj,$wp,$ul,$rm,$uv,$uj,$uf,$h,$ls,$a,$u)
+            ON CONFLICT(key) DO UPDATE SET lvnr=$lv,group_nr=$gn,semester=$sem,title=$t,type=$ty,status=$st,immanent=$im,study_name=$sn,moodle_url=$mu,
+              moodle_course_id=$mi,lecturers_json=$lj,waitlist_pos=$wp,ufind_link=$ul,remark=$rm,ufind_version=$uv,ufind_json=$uj,ufind_fetched_at=$uf,
+              content_hash=$h,last_seen_at=$ls,active=$a,unseen_change=$u
+            """,
+            ("$key", e.Key), ("$lv", e.LvNr), ("$gn", e.GroupNr), ("$sem", e.Semester), ("$t", e.Title), ("$ty", e.Type), ("$st", e.Status),
+            ("$im", e.Immanent ? 1 : 0), ("$sn", e.StudyName), ("$mu", e.MoodleUrl), ("$mi", e.MoodleCourseId), ("$lj", e.LecturersJson),
+            ("$wp", e.WaitlistPosition), ("$ul", e.UfindLink), ("$rm", e.Remark), ("$uv", e.UfindVersion), ("$uj", e.UfindJson),
+            ("$uf", e.UfindFetchedAt?.ToUnixTimeSeconds()), ("$h", e.ContentHash), ("$ls", e.LastSeenAt.ToUnixTimeSeconds()),
+            ("$a", e.Active ? 1 : 0), ("$u", e.UnseenChange ? 1 : 0));
+        if (sessions is not null)
+        {
+            Exec(c, "DELETE FROM univie_sessions WHERE enrolment_key=$k", ("$k", e.Key));
+            foreach (var s in sessions)
+                Exec(c, """
+                    INSERT OR REPLACE INTO univie_sessions(session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room)
+                    VALUES($k,$e,$b,$en,$r,$h,$st,$ch,$fs,$lc,$pb,$pe,$pr)
+                    """,
+                    ("$k", s.Key), ("$e", s.EnrolmentKey), ("$b", s.Begin.ToUnixTimeSeconds()), ("$en", s.End.ToUnixTimeSeconds()), ("$r", s.Room),
+                    ("$h", s.Hash), ("$st", (int)s.Status), ("$ch", (int)s.Change), ("$fs", s.FirstSeenAt.ToUnixTimeSeconds()),
+                    ("$lc", s.LastChangedAt.ToUnixTimeSeconds()), ("$pb", s.PrevBegin?.ToUnixTimeSeconds()), ("$pe", s.PrevEnd?.ToUnixTimeSeconds()), ("$pr", s.PrevRoom));
+        }
+        if (snapshotJson is not null)
+            Exec(c, "INSERT INTO enrolment_snapshots(enrolment_key,taken_at,hash,json,change_kinds) VALUES($k,$t,$h,$j,$ck)",
+                ("$k", e.Key), ("$t", e.LastSeenAt.ToUnixTimeSeconds()), ("$h", e.ContentHash), ("$j", snapshotJson), ("$ck", changeKinds ?? ""));
+        tx.Commit();
+    }
+
+    public void SetEnrolmentActive(string key, bool active)
+    {
+        using var c = Open();
+        Exec(c, "UPDATE enrolments SET active=$a WHERE key=$k", ("$a", active ? 1 : 0), ("$k", key));
+    }
+
+    public void ClearEnrolmentUnseen(string key)
+    {
+        using var c = Open();
+        Exec(c, "UPDATE enrolments SET unseen_change=0 WHERE key=$k", ("$k", key));
+    }
+
+    static SessionRecord ReadSession(SqliteDataReader r) => new()
+    {
+        Key = r.GetString(0), EnrolmentKey = r.GetString(1), Begin = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(2)),
+        End = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(3)), Room = r.IsDBNull(4) ? null : r.GetString(4), Hash = r.GetString(5),
+        Status = (SessionStatus)r.GetInt32(6), Change = (SessionChange)r.GetInt32(7),
+        FirstSeenAt = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(8)), LastChangedAt = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(9)),
+        PrevBegin = r.IsDBNull(10) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(10)),
+        PrevEnd = r.IsDBNull(11) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(11)),
+        PrevRoom = r.IsDBNull(12) ? null : r.GetString(12),
+    };
+
+    const string SessCols = "session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room";
+
+    public List<SessionRecord> GetSessions(string enrolmentKey)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {SessCols} FROM univie_sessions WHERE enrolment_key=$k ORDER BY begin_at";
+        cmd.Parameters.AddWithValue("$k", enrolmentKey);
+        using var r = cmd.ExecuteReader();
+        var l = new List<SessionRecord>();
+        while (r.Read()) l.Add(ReadSession(r));
+        return l;
+    }
+
+    /// <summary>Sessions of active enrolments touching [from,to), by their current or previous (moved-from) slot.</summary>
+    public List<(SessionRecord Session, EnrolmentRecord Enrolment)> GetSessionsBetween(DateTimeOffset from, DateTimeOffset to)
+    {
+        var enr = GetEnrolments().ToDictionary(e => e.Key);
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT {SessCols} FROM univie_sessions
+            WHERE (begin_at < $to AND end_at >= $from) OR (prev_begin IS NOT NULL AND prev_begin < $to AND prev_end >= $from)
+            ORDER BY begin_at
+            """;
+        cmd.Parameters.AddWithValue("$from", from.ToUnixTimeSeconds());
+        cmd.Parameters.AddWithValue("$to", to.ToUnixTimeSeconds());
+        using var r = cmd.ExecuteReader();
+        var l = new List<(SessionRecord, EnrolmentRecord)>();
+        while (r.Read())
+        {
+            var s = ReadSession(r);
+            if (enr.TryGetValue(s.EnrolmentKey, out var e)) l.Add((s, e));
+        }
+        return l;
+    }
+
+    public List<Snapshot> GetEnrolmentSnapshots(string key)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,taken_at,hash,json,change_kinds FROM enrolment_snapshots WHERE enrolment_key=$k ORDER BY id DESC";
+        cmd.Parameters.AddWithValue("$k", key);
+        using var r = cmd.ExecuteReader();
+        var l = new List<Snapshot>();
+        while (r.Read())
+            l.Add(new(r.GetInt64(0), 0, DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(1)), r.GetString(2), r.GetString(3), ChangeKind.None, r.IsDBNull(4) ? "" : r.GetString(4)));
+        return l;
     }
 
     // ---- notifications

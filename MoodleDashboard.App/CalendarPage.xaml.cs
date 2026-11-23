@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using MoodleDashboard.Core;
 using MoodleDashboard.Core.Calendar;
+using MoodleDashboard.Core.Univie;
 
 namespace MoodleDashboard.App;
 
@@ -69,7 +70,46 @@ public sealed partial class CalendarPage : Page
         var list = A.Db.GetEvents(from, to);
         if (A.Settings.ShowDemoEvents)
             list.AddRange(CalendarModel.DemoEvents(_anchor).Where(e => e.End >= from && e.Start < to));
+        list.AddRange(UnivieEvents(from, to));
         return list;
+    }
+
+    /// <summary>Course sessions (u:space) as calendar events, incl. moved ghosts and cancelled sessions.</summary>
+    List<CalendarEvent> UnivieEvents(DateTimeOffset from, DateTimeOffset to)
+    {
+        var res = new List<CalendarEvent>();
+        var now = DateTimeOffset.Now;
+        var showGhosts = A.Settings.ShowMovedRemoved;
+        string Fmt(DateTimeOffset t) => t.ToLocalTime().ToString("ddd d.M. HH:mm", Culture);
+
+        foreach (var (s, e) in A.Db.GetSessionsBetween(from, to))
+        {
+            var recent = s.Begin > now.AddDays(-7);          // change labels only matter until shortly after the event
+            var room = string.IsNullOrWhiteSpace(s.Room) ? null : s.Room;
+            string id = $"uspace:{s.Key}";
+            string desc = $"{e.Type} · {e.Semester}";
+
+            if (s.Status == SessionStatus.Removed)
+            {
+                if (showGhosts && recent && s.End >= from && s.Begin < to)
+                    res.Add(new(id, e.Title, s.Begin, s.End, false, room, desc, e.MoodleUrl, "uspace", e.Title, "removed", "Cancelled / removed"));
+                continue;
+            }
+
+            var changed = recent && s.Change is SessionChange.Moved or SessionChange.Changed && s.PrevBegin is not null;
+            if (s.End >= from && s.Begin < to)
+            {
+                var note = !changed ? null
+                    : s.Change == SessionChange.Moved ? $"Moved from {Fmt(s.PrevBegin!.Value)}"
+                    : $"Changed (was {Fmt(s.PrevBegin!.Value)}" + (s.PrevRoom != s.Room && s.PrevRoom is not null ? $", {s.PrevRoom}" : "") + ")";
+                res.Add(new(id, e.Title, s.Begin, s.End, false, room, desc, e.MoodleUrl, "uspace", e.Title,
+                    changed ? (s.Change == SessionChange.Moved ? "moved" : "changed") : "active", note));
+            }
+            if (showGhosts && changed && s.PrevBegin is { } pb && s.PrevEnd is { } pe && pb != s.Begin && pe >= from && pb < to)
+                res.Add(new($"{id}:ghost", e.Title, pb, pe, false, s.PrevRoom, desc, e.MoodleUrl, "uspace", e.Title, "ghost",
+                    s.Change == SessionChange.Moved ? $"Moved to {Fmt(s.Begin)}" : $"Now at {Fmt(s.Begin)}"));
+        }
+        return res;
     }
 
     // ---------- navigation
@@ -326,8 +366,18 @@ public sealed partial class CalendarPage : Page
             var w = (width - 6) / b.Columns;
             var top = b.StartMin / 60 * HourH;
             var h = Math.Max(18, (b.EndMin - b.StartMin) / 60 * HourH - 2);
+            var st = b.Event.Status;
+            var faded = st is "removed" or "ghost";
+            var fg = faded ? Res("TextFillColorPrimaryBrush") : Res("TextOnAccentFillColorPrimaryBrush");
             var sp = new StackPanel { Spacing = 0 };
-            sp.Children.Add(new TextBlock { Text = b.Event.Title, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
+            sp.Children.Add(new TextBlock
+            {
+                Text = (st == "moved" ? "↪ " : st == "changed" ? "✎ " : "") + b.Event.Title, FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg,
+                TextDecorations = st == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
+            });
+            if (h > 34 && b.Event.Note is { Length: > 0 } nt && st is not "active")
+                sp.Children.Add(new TextBlock { Text = nt, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg });
             if (h > 34)
                 sp.Children.Add(new TextBlock { Text = $"{Time(b.Event.Start)} – {Time(b.Event.End)}", FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
             if (h > 50 && !string.IsNullOrEmpty(b.Event.Location))
@@ -336,7 +386,10 @@ public sealed partial class CalendarPage : Page
             {
                 Content = sp, Width = Math.Max(10, w - 2), Height = h, Padding = new Thickness(5, 2, 5, 2),
                 HorizontalContentAlignment = HorizontalAlignment.Left, VerticalContentAlignment = VerticalAlignment.Top,
-                Background = Res("AccentFillColorDefaultBrush"), BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(4),
+                Background = faded ? Res("SubtleFillColorSecondaryBrush") : Res("AccentFillColorDefaultBrush"),
+                BorderBrush = st is "moved" or "changed" ? Res("SystemFillColorCautionBrush") : faded ? Res("TextFillColorSecondaryBrush") : null,
+                BorderThickness = st is "moved" or "changed" or "removed" or "ghost" ? new Thickness(2) : new Thickness(0),
+                CornerRadius = new CornerRadius(4), Opacity = st == "ghost" ? 0.55 : st == "removed" ? 0.75 : 1,
             };
             var ev = b.Event;
             btn.Click += (_, _) => ShowItemFlyout(btn, new MetaItem(MetaKind.Event, ev.Title, day, day, 0, null, ev));
@@ -474,6 +527,7 @@ public sealed partial class CalendarPage : Page
         {
             sp.Children.Add(T(e.Title, bold: true));
             sp.Children.Add(T(EventWhen(e)));
+            if (e.Note is { Length: > 0 } note) sp.Children.Add(T("⚠ " + note, bold: true));
             if (!string.IsNullOrWhiteSpace(e.CourseName)) sp.Children.Add(T(e.CourseName!, secondary: true));
             if (!string.IsNullOrWhiteSpace(e.Location)) sp.Children.Add(T("📍 " + e.Location));
             if (!string.IsNullOrWhiteSpace(e.Description)) sp.Children.Add(T(e.Description!, secondary: true));
@@ -484,6 +538,7 @@ public sealed partial class CalendarPage : Page
                 sp.Children.Add(link);
             }
             if (e.Source == "demo") sp.Children.Add(T("Demo event", secondary: true));
+            if (e.Source == "uspace") sp.Children.Add(T("Source: u:space", secondary: true));
         }
         fly.Content = sp;
         fly.ShowAt(anchor);

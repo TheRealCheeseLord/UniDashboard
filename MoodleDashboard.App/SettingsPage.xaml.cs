@@ -34,6 +34,7 @@ public sealed partial class SettingsPage : Page
         ReminderBox.Value = S.ReminderHours;
         AgentSwitch.IsOn = AgentScheduler.IsRegistered();
         DemoSwitch.IsOn = S.ShowDemoEvents;
+        MovedSwitch.IsOn = S.ShowMovedRemoved;
         NameBox.Text = S.StudentName;
         MatrikelBox.Text = S.Matrikelnummer;
         TemplateBox.Text = S.TemplatePath;
@@ -73,6 +74,11 @@ public sealed partial class SettingsPage : Page
         Add("Submitted status (default: silent)", S.Notify(ChangeKind.Submitted), v => S.SetNotify(ChangeKind.Submitted, v));
         Add("Due reminder", S.NotifyDueReminder, v => S.NotifyDueReminder = v);
         Add("Login required", S.NotifyLoginRequired, v => S.NotifyLoginRequired = v);
+        foreach (var (kind, label, _) in MoodleDashboard.Core.Univie.CourseKinds.All)
+        {
+            var k = kind;
+            Add(label, S.NotifyCourse(k), v => S.SetNotifyCourse(k, v));
+        }
     }
 
     // ---- login
@@ -161,6 +167,8 @@ public sealed partial class SettingsPage : Page
         }
         catch (Exception ex) { Show("Task Scheduler error: " + ex.Message, InfoBarSeverity.Error); }
     }
+
+    void MovedSwitch_Toggled(object sender, RoutedEventArgs e) { if (!_loading) S.ShowMovedRemoved = MovedSwitch.IsOn; }
 
     void DemoSwitch_Toggled(object sender, RoutedEventArgs e) { if (!_loading) S.ShowDemoEvents = DemoSwitch.IsOn; }
 

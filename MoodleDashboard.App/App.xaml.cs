@@ -30,7 +30,10 @@ public partial class App : Application
         Auth = new AuthService(Settings, Tokens);
         // The App may show a browser (headed login) when the token expired.
         Client = new MoodleClient(_http, Settings, Auth, headlessReauth: false);
-        Sync = new SyncService(Db, Settings, Client, new AppToastNotifier(), m => FileLog.Write("app", m));
+        var notifier = new AppToastNotifier();
+        Sync = new SyncService(Db, Settings, Client, notifier, m => FileLog.Write("app", m));
+        Sync.Univie = new MoodleDashboard.Core.Univie.UnivieSyncService(Db, Settings, new MoodleDashboard.Core.Uspace.UspaceClient(Settings),
+            new MoodleDashboard.Core.Ufind.UfindClient(MoodleDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: false, m => FileLog.Write("app", m));
         TemplateBuilder.EnsureDefaultTemplate();
     }
 
@@ -43,7 +46,8 @@ public partial class App : Application
             Window.DispatcherQueue.TryEnqueue(() =>
             {
                 Window.Activate();
-                Window.HandleCommandLine(e.Arguments.TryGetValue("assignmentId", out var id) ? "--assignment=" + id : "");
+                Window.HandleCommandLine(e.Arguments.TryGetValue("courseKey", out var ck) ? "--course=" + ck
+                    : e.Arguments.TryGetValue("assignmentId", out var id) ? "--assignment=" + id : "");
             });
         AppNotificationManager.Default.Register();
 
@@ -57,6 +61,7 @@ public partial class App : Application
         string cmd = a.Data switch
         {
             Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs l => l.Arguments ?? "",
+            AppNotificationActivatedEventArgs t when t.Arguments.TryGetValue("courseKey", out var ck) => "--course=" + ck,
             AppNotificationActivatedEventArgs t when t.Arguments.TryGetValue("assignmentId", out var id) => "--assignment=" + id,
             _ => "",
         };
@@ -75,7 +80,7 @@ internal class AppToastNotifier : INotifier
         try
         {
             AppNotificationManager.Default.Show(new AppNotificationBuilder()
-                .AddText(n.Title).AddText(n.Body).AddArgument("assignmentId", n.AssignmentId.ToString()).BuildNotification());
+                .AddText(n.Title).AddText(n.Body).AddArgument(n.CourseKey is null ? "assignmentId" : "courseKey", n.CourseKey ?? n.AssignmentId.ToString()).BuildNotification());
         }
         catch { /* toasts are best-effort in the App */ }
     }

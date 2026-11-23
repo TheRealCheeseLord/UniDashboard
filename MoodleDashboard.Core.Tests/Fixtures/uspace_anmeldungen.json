@@ -1,0 +1,11 @@
+[
+ {"lehrveranstaltung":{"lvNr":"010004","gruppenNr":"1","semesterKuerzel":"2026W","titel":"Einführung in das wissenschaftliche Arbeiten","typ":"PS",
+   "lehrende":[{"vorname":"Max","nachname":"Muster","rolle":"V"}],"ufindLink":"https://ufind.univie.ac.at/de/course.html?lv=010004&semester=2026W","pruefungsimmanent":true,
+   "termine":[{"beginn":1791535500000,"ende":1791547200000,"raumName":"Seminarraum 5  Schenkenstraße 1.OG"},{"beginn":1792140300000,"ende":1792152000000,"raumName":"Seminarraum 5  Schenkenstraße 1.OG"}],
+   "anmerkungStattTermin":false,"terminAnmerkungen":null},
+  "pruefung":null,"elearningCourse":{"name":"Moodle","url":"https://moodle.univie.ac.at/course/view.php?id=469301"},
+  "studium":{"name":"Test Studium"},"status":"ANGEMELDET","anmeldungTyp":"LEHRVERANSTALTUNG","semesterKuerzel":"2026W","wartelistenPlatz":null},
+ {"lehrveranstaltung":{"lvNr":"090034","gruppenNr":"1","semesterKuerzel":"2026W","titel":"Latein I","typ":"VO","lehrende":[],"termine":[],"pruefungsimmanent":false},
+  "pruefung":null,"elearningCourse":null,"studium":null,"status":"WARTELISTE","anmeldungTyp":"LEHRVERANSTALTUNG","semesterKuerzel":"2026W","wartelistenPlatz":4},
+ {"lehrveranstaltung":null,"pruefung":{"x":1},"status":"ANGEMELDET","anmeldungTyp":"PRUEFUNG","semesterKuerzel":"2026W"}
+]

@@ -25,10 +25,10 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
     readonly string _sessionPath = sessionPath ?? Path.Combine(Paths.Root, "session.bin");
 
     // Protocol-level Shibboleth names first (stable across IdP re-designs), then the ids used today.
-    const string UserSel = "input[name='j_username'], input#userid, input[autocomplete='username'], input[type='text']";
-    const string PassSel = "input[name='j_password'], input#password, input[type='password']";
-    const string SubmitSel = "button[name='_eventId_proceed'], form button[type='submit'], form input[type='submit']";
-    const string ConsentSel = "button[name='_eventId_proceed'], input[value*='Confirm'], input[value*='Akzeptieren']";
+    internal const string UserSel = "input[name='j_username'], input#userid, input[autocomplete='username'], input[type='text']";
+    internal const string PassSel = "input[name='j_password'], input#password, input[type='password']";
+    internal const string SubmitSel = "button[name='_eventId_proceed'], form button[type='submit'], form input[type='submit']";
+    internal const string ConsentSel = "button[name='_eventId_proceed'], input[value*='Confirm'], input[value*='Akzeptieren']";
 
     public LoginTiming? LastLogin { get; private set; }
     public string? CurrentToken() => tokens.Load();
@@ -65,7 +65,7 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
     }
 
     /// <summary>Cross-process, await-safe lock (exclusive file handle; released automatically if the process dies).</summary>
-    static async Task<FileStream> AcquireLockAsync(CancellationToken ct)
+    internal static async Task<FileStream> AcquireLockAsync(CancellationToken ct)
     {
         var path = Path.Combine(Paths.Root, "login.lock");
         var deadline = DateTime.UtcNow.AddSeconds(90);
@@ -141,7 +141,7 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
         return token;
     }
 
-    static async Task SubmitCredentialsAsync(IPage page, (string User, string Password) c, Regex moodleRe)
+    internal static async Task SubmitCredentialsAsync(IPage page, (string User, string Password) c, Regex moodleRe)
     {
         var userBox = page.Locator(UserSel).First;
         try { await userBox.WaitForAsync(new() { Timeout = 8_000 }); }
@@ -168,7 +168,7 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
         }
     }
 
-    static async Task<bool> TryConsentAsync(IPage page)
+    internal static async Task<bool> TryConsentAsync(IPage page)
     {
         var btn = page.Locator(ConsentSel).First;
         if (await page.Locator(PassSel).CountAsync() > 0) return false;  // that's the login form, not a consent page
@@ -177,7 +177,7 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
         catch (PlaywrightException) { return false; }
     }
 
-    static async Task<IBrowser> LaunchAsync(IPlaywright pw, bool headless)
+    internal static async Task<IBrowser> LaunchAsync(IPlaywright pw, bool headless)
     {
         var opts = new BrowserTypeLaunchOptions
         {
@@ -242,7 +242,7 @@ public class AuthService(AppSettings settings, TokenStore tokens, string? sessio
 
     // ---------- lockout protection: never retry credentials the IdP already rejected
 
-    static string CredHash((string User, string Password) c) =>
+    internal static string CredHash((string User, string Password) c) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(c.User + "\0" + c.Password)));
 
     bool IsBlocked((string User, string Password) c) => settings.RejectedCredentialHash == CredHash(c);

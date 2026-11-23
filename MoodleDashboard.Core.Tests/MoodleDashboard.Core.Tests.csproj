@@ -20,6 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MoodleDashboard.Core\MoodleDashboard.Core.csproj" />
-    <Content Include="Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

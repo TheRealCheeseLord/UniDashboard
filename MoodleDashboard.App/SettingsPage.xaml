@@ -36,6 +36,7 @@
             <StackPanel x:Name="NotifyPanel" Spacing="2" />
 
             <TextBlock Text="Calendar" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <ToggleSwitch x:Name="MovedSwitch" Header="Show moved / cancelled sessions in the calendar" Toggled="MovedSwitch_Toggled" />
             <ToggleSwitch x:Name="DemoSwitch" Header="Show demo events (for reviewing the calendar UI)" Toggled="DemoSwitch_Toggled" />
 
             <TextBlock Text="Word template" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />

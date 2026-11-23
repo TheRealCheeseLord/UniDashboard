@@ -6,6 +6,7 @@ namespace MoodleDashboard.App;
 public sealed partial class MainWindow : Window
 {
     long? _pendingAssignment;
+    string? _pendingCourse;
     bool _pendingLogin;
 
     public MainWindow()
@@ -22,8 +23,10 @@ public sealed partial class MainWindow : Window
     void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), _ => typeof(AssignmentsPage) };
-        ContentFrame.Navigate(page, tag == "assignments" ? _pendingAssignment : null);
+        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), _ => typeof(AssignmentsPage) };
+        object? param = tag switch { "assignments" => _pendingAssignment, "courses" => _pendingCourse, _ => null };
+        if (tag == "courses") _pendingCourse = null;
+        ContentFrame.Navigate(page, param);
     }
 
     /// <summary>Handles "--assignment=ID" (toast deep link) and "--login".</summary>
@@ -38,6 +41,13 @@ public sealed partial class MainWindow : Window
                 else if (Nav.SelectedItem == Nav.MenuItems[0]) ContentFrame.Navigate(typeof(AssignmentsPage), id);
                 else Nav.SelectedItem = Nav.MenuItems[0];
             }
+            else if (part.StartsWith("--course="))
+            {
+                _pendingCourse = part["--course=".Length..];
+                if (ContentFrame.Content is CoursesPage cp) { cp.ShowCourse(_pendingCourse); _pendingCourse = null; }
+                else if (Nav.SelectedItem == Nav.MenuItems[2]) ContentFrame.Navigate(typeof(CoursesPage), _pendingCourse);
+                else Nav.SelectedItem = Nav.MenuItems[2];
+            }
             else if (part == "--calendar" || part.StartsWith("--calendar="))
             {
                 CalendarPage.RequestedView = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
@@ -45,7 +55,7 @@ public sealed partial class MainWindow : Window
             }
             else if (part == "--login")
             {
-                Nav.SelectedItem = Nav.MenuItems[2];
+                Nav.SelectedItem = Nav.MenuItems[3];
                 _pendingLogin = true;
             }
         }

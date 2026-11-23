@@ -43,7 +43,10 @@ internal static class Program
             var auth = new AuthService(settings, new TokenStore());
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             var client = new MoodleClient(http, settings, auth, headlessReauth: true);
-            var sync = new SyncService(db, settings, client, new ToastNotifier(), Log);
+            var notifier = new ToastNotifier();
+            var sync = new SyncService(db, settings, client, notifier, Log);
+            sync.Univie = new MoodleDashboard.Core.Univie.UnivieSyncService(db, settings, new MoodleDashboard.Core.Uspace.UspaceClient(settings),
+                new MoodleDashboard.Core.Ufind.UfindClient(MoodleDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: true, Log);
 
             var result = await sync.RunAsync();
             Log($"sync: {result.Assignments} assignments, {result.Changed} changed, {result.Notified} toasts" +
@@ -73,7 +76,8 @@ internal static class Program
         var exe = Path.Combine(AppContext.BaseDirectory, AppExe);
         if (!File.Exists(exe)) return;
         var psi = new ProcessStartInfo(exe) { UseShellExecute = false };
-        if (toastArgs.TryGetValue("assignmentId", out var id)) psi.ArgumentList.Add("--assignment=" + id);
+        if (toastArgs.TryGetValue("courseKey", out var ck)) psi.ArgumentList.Add("--course=" + ck);
+        else if (toastArgs.TryGetValue("assignmentId", out var id)) psi.ArgumentList.Add("--assignment=" + id);
         else if (toastArgs.ContainsKey("login")) psi.ArgumentList.Add("--login");
         Process.Start(psi);
     }
@@ -81,7 +85,7 @@ internal static class Program
 
 internal class ToastNotifier : INotifier
 {
-    public void Send(PendingNotification n) => Show(n.Title, n.Body, "assignmentId=" + n.AssignmentId);
+    public void Send(PendingNotification n) => Show(n.Title, n.Body, n.CourseKey is null ? "assignmentId=" + n.AssignmentId : "courseKey=" + n.CourseKey);
 
     public static void Show(string title, string body, string argument)
     {

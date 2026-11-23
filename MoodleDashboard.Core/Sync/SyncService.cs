@@ -13,7 +13,29 @@ public record SyncResult(int Assignments, int Changed, int Notified, string? Err
 /// <summary>One sync pass: courses → assignments → submission status → change detection → notifications.</summary>
 public class SyncService(Database db, AppSettings settings, MoodleClient client, INotifier? notifier, Action<string>? log = null)
 {
+    /// <summary>Optional u:space/u:find sync, run after the Moodle sync; its failures never affect the Moodle result.</summary>
+    public Univie.UnivieSyncService? Univie { get; set; }
+
     public async Task<SyncResult> RunAsync(CancellationToken ct = default)
+    {
+        var r = await RunMoodleAsync(ct);
+        if (Univie is null) return r;
+        try
+        {
+            var u = await Univie.RunAsync(ct);
+            r = r with { Changed = r.Changed + u.Changed, Notified = r.Notified + u.Notified };
+            log?.Invoke($"univie: {u.Enrolments} enrolments, {u.Changed} changed, {u.Notified} toasts" + (u.Error is null ? "" : ", error: " + u.Error));
+            if (u.Error is not null && r.Error is null) r = r with { Error = "u:space: " + u.Error, LoginRequired = u.LoginRequired };
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            log?.Invoke("univie sync crashed: " + e);
+            r = r with { Error = r.Error ?? "u:space: " + e.Message };
+        }
+        return r;
+    }
+
+    async Task<SyncResult> RunMoodleAsync(CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
         try
