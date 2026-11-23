@@ -75,11 +75,26 @@ public sealed partial class CalendarPage : Page
         return A.Settings.ShowMovedRemoved ? list : list.Where(x => x.Exam.Status != ExamStatus.Removed).ToList();
     }
 
-    /// <summary>A registered exam with a known time is a normal block in the time grid.</summary>
-    static IEnumerable<CalendarEvent> RegisteredExamEvents(IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)> exams) =>
-        exams.Where(x => x.Exam.Registered && x.Exam.TimeKnown && x.Exam.Status == ExamStatus.Active)
-            .Select(x => new CalendarEvent($"exam:{x.Exam.Key}", "Exam: " + x.Enrolment.Title, x.Exam.Begin, x.Exam.End, false, x.Exam.Room,
-                x.Exam.When, x.Enrolment.MoodleUrl, "exam", x.Enrolment.Title, "active", "You are registered for this exam"));
+    readonly Dictionary<string, ExamRecord> _examByEventId = new();
+
+    /// <summary>
+    /// Exams with a known time are events in the time grid: registered ones like normal events, all other (possible) dates
+    /// greyed out. They share the overlap packing with sessions (thin, side by side). Date-only exams stay chips in the meta row.
+    /// </summary>
+    List<CalendarEvent> ExamEvents(IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)> exams)
+    {
+        var list = new List<CalendarEvent>();
+        foreach (var (x, e) in exams.Where(x => x.Exam.TimeKnown))
+        {
+            var id = $"exam:{x.Key}";
+            _examByEventId[id] = x;
+            var (status, note) = x.Status == ExamStatus.Removed ? ("removed", "Exam date removed")
+                : x.Registered ? ("active", "You are registered for this exam")
+                : ("possible", "Possible exam date" + (x.Change == ExamChange.Changed ? " (changed)" : ""));
+            list.Add(new(id, "Exam: " + e.Title, x.Begin, x.End, false, x.Room, x.When, e.MoodleUrl, "exam", e.Title, status, note));
+        }
+        return list;
+    }
 
     List<CalendarEvent> LoadEvents(DateOnly first, int days)
     {
@@ -196,7 +211,7 @@ public sealed partial class CalendarPage : Page
         var now = DateTimeOffset.Now;
         var events = LoadEvents(first, n);
         var exams = LoadExams(first, n);
-        events.AddRange(RegisteredExamEvents(exams));
+        events.AddRange(ExamEvents(exams));
         var meta = CalendarModel.BuildMetaRow(first, n, A.Db.GetAssignments(), events, now, exams);
 
         Body.RowDefinitions.Add(new() { Height = GridLength.Auto });   // day header (sticky)
@@ -345,14 +360,18 @@ public sealed partial class CalendarPage : Page
         else
         {
             text = item.Title;
-            (bg, fg) = (Res("AccentFillColorDefaultBrush"), Res("TextOnAccentFillColorPrimaryBrush"));
+            var st = item.Event?.Status ?? "active";
+            (bg, fg) = st is "possible" or "removed"
+                ? (Res("SubtleFillColorSecondaryBrush"), Res("TextFillColorSecondaryBrush"))
+                : (Res("AccentFillColorDefaultBrush"), Res("TextOnAccentFillColorPrimaryBrush"));
+            if (st == "possible") text = "? " + text;
         }
         var b = new Button
         {
             Content = new TextBlock
             {
                 Text = text, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg,
-                TextDecorations = item.State == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
+                TextDecorations = item.State == "removed" || item.Event?.Status == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
             },
             Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(2, 1, 2, 1), MinHeight = 22,
             HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left,
@@ -408,12 +427,12 @@ public sealed partial class CalendarPage : Page
             var top = b.StartMin / 60 * HourH;
             var h = Math.Max(18, (b.EndMin - b.StartMin) / 60 * HourH - 2);
             var st = b.Event.Status;
-            var faded = st is "removed" or "ghost";
+            var faded = st is "removed" or "ghost" or "possible";
             var fg = faded ? Res("TextFillColorPrimaryBrush") : Res("TextOnAccentFillColorPrimaryBrush");
             var sp = new StackPanel { Spacing = 0 };
             sp.Children.Add(new TextBlock
             {
-                Text = (st == "moved" ? "↪ " : st == "changed" ? "✎ " : "") + b.Event.Title, FontSize = 12,
+                Text = (st == "moved" ? "↪ " : st == "changed" ? "✎ " : st == "possible" ? "? " : "") + b.Event.Title, FontSize = 12,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg,
                 TextDecorations = st == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
             });
@@ -429,8 +448,8 @@ public sealed partial class CalendarPage : Page
                 HorizontalContentAlignment = HorizontalAlignment.Left, VerticalContentAlignment = VerticalAlignment.Top,
                 Background = faded ? Res("SubtleFillColorSecondaryBrush") : Res("AccentFillColorDefaultBrush"),
                 BorderBrush = st is "moved" or "changed" ? Res("SystemFillColorCautionBrush") : faded ? Res("TextFillColorSecondaryBrush") : null,
-                BorderThickness = st is "moved" or "changed" or "removed" or "ghost" ? new Thickness(2) : new Thickness(0),
-                CornerRadius = new CornerRadius(4), Opacity = st == "ghost" ? 0.55 : st == "removed" ? 0.75 : 1,
+                BorderThickness = st is "moved" or "changed" or "removed" or "ghost" ? new Thickness(2) : st == "possible" ? new Thickness(1) : new Thickness(0),
+                CornerRadius = new CornerRadius(4), Opacity = st == "ghost" ? 0.55 : st == "removed" ? 0.75 : st == "possible" ? 0.9 : 1,
             };
             var ev = b.Event;
             btn.Click += (_, _) => ShowItemFlyout(btn, new MetaItem(MetaKind.Event, ev.Title, day, day, 0, null, ev));
@@ -463,7 +482,7 @@ public sealed partial class CalendarPage : Page
         var now = DateTimeOffset.Now;
         var events = LoadEvents(gridStart, 42);
         var exams = LoadExams(gridStart, 42);
-        events.AddRange(RegisteredExamEvents(exams));
+        events.AddRange(ExamEvents(exams));
         var assignments = A.Db.GetAssignments();
         var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -493,7 +512,7 @@ public sealed partial class CalendarPage : Page
             foreach (var it in metaItems.Where(i => i.Kind != MetaKind.ExamWindow)) items.Add(it);
             var windowChips = metaItems.Where(i => i.Kind == MetaKind.ExamWindow && (i.StartDay == day || i.EndDay == day))
                 .Select(w => w with { Title = (w.StartDay == day ? "Registration opens: " : "Registration closes: ") + w.CourseTitle }).ToList();
-            var timed = events.Where(e => !CalendarModel.IsMeta(e) && CalendarModel.DayOf(e.Start) == day).OrderBy(e => e.Start)
+            var timed = events.Where(e => !CalendarModel.IsMeta(e) && e.Status != "ghost" && CalendarModel.DayOf(e.Start) == day).OrderBy(e => e.Start)
                 .Select(e => new MetaItem(MetaKind.Event, $"{Time(e.Start)} {e.Title}", day, day, 0, null, e)).ToList();
             items.AddRange(timed);
             items.AddRange(windowChips);
@@ -552,6 +571,8 @@ public sealed partial class CalendarPage : Page
 
     void ShowItemFlyout(FrameworkElement anchor, MetaItem item)
     {
+        if (item.Event is { } ev0 && item.Exam is null && _examByEventId.TryGetValue(ev0.Id, out var examOfEvent))
+            item = item with { Exam = examOfEvent, CourseTitle = ev0.CourseName, Registered = examOfEvent.Registered };
         var fly = new Flyout();
         var sp = new StackPanel { Spacing = 6, MinWidth = 260, MaxWidth = 380 };
         TextBlock T(string text, bool bold = false, bool secondary = false) => new()

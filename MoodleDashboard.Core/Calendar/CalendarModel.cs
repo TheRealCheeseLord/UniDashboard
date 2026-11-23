@@ -78,8 +78,8 @@ public static class CalendarModel
     }
 
     /// <summary>
-    /// Exam dates become chips on their day (registered exams with a known time live in the time grid instead);
-    /// a published registration window becomes a range bar over its days.
+    /// Exams with a known time are events in the time grid (see the calendar page); date-only exams (time not published)
+    /// become all-day style chips on their day; a published registration window becomes a range bar over its days.
     /// </summary>
     static void AddExamItems(List<MetaItem> items, DateOnly first, DateOnly last,
         IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)>? exams, DateTimeOffset now)
@@ -94,7 +94,7 @@ public static class CalendarModel
             var recent = x.Begin > now.AddDays(-7);
             var state = removed ? "removed" : x.Change == ExamChange.Changed && recent ? "changed" : "";
 
-            if (!(x.Registered && x.TimeKnown && !removed))
+            if (!x.TimeKnown)
             {
                 var d = DayOf(x.Begin);
                 if (d >= first && d <= last)
