@@ -26,12 +26,18 @@ public partial class App : Application
     // Google Calendar (user-provided OAuth client; tokens DPAPI-encrypted)
     public MoodleDashboard.Core.Google.GoogleCredentialStore GoogleCreds { get; } = new();
     public MoodleDashboard.Core.Google.GoogleAuth GoogleAuth { get; }
-    public MoodleDashboard.Core.Google.GoogleCalendarClient GoogleApi { get; }
+    public MoodleDashboard.Core.Google.IGoogleCalendar GoogleApi { get; }
     public MoodleDashboard.Core.Google.GoogleSyncService GoogleSync { get; }
 
     public App()
     {
         InitializeComponent();
+
+        // Never let a stray exception take the whole app down silently: log it (the stack goes to logspp-*.log).
+        UnhandledException += (_, e) => { FileLog.Write("app", "UNHANDLED (UI): " + e.Exception); e.Handled = true; };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => FileLog.Write("app", "UNHANDLED (domain): " + e.ExceptionObject);
+        TaskScheduler.UnobservedTaskException += (_, e) => { FileLog.Write("app", "UNOBSERVED task exception: " + e.Exception); e.SetObserved(); };
+
         Settings = new AppSettings(Db);
         Auth = new AuthService(Settings, Tokens);
         // The App may show a browser (headed login) when the token expired.

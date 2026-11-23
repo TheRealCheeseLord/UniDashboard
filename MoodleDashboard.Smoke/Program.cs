@@ -43,6 +43,24 @@ if (args.Contains("--export-ics"))   // dev check: writes the .ics of the real d
     return;
 }
 
+if (args.Contains("--google-preview"))   // READ-ONLY: previews what a Google sync would do (never writes)
+{
+    using var gh = new HttpClient();
+    var creds = new MoodleDashboard.Core.Google.GoogleCredentialStore();
+    var gauth = new MoodleDashboard.Core.Google.GoogleAuth(gh, creds);
+    var api = new MoodleDashboard.Core.Google.GoogleCalendarClient(gh, (f, ct) => gauth.GetAccessTokenAsync(f, ct));
+    var svc = new MoodleDashboard.Core.Google.GoogleSyncService(db, settings, api);
+    Console.WriteLine($"connected={gauth.IsConnected} target='{settings.GoogleTargetCalendarName}' scan=[{string.Join(",", settings.GoogleScanCalendarIds)}]");
+    try
+    {
+        var pv = await svc.PreviewAsync();
+        var pl = pv.Plan;
+        Console.WriteLine($"create={pl.Count(MoodleDashboard.Core.Export.SyncActionKind.Create)} update={pl.Count(MoodleDashboard.Core.Export.SyncActionKind.Update)} delete={pl.Count(MoodleDashboard.Core.Export.SyncActionKind.Delete)} unchanged={pl.Count(MoodleDashboard.Core.Export.SyncActionKind.Unchanged)} dup={pl.Count(MoodleDashboard.Core.Export.SyncActionKind.SkipForeignDuplicate)} foreign={pv.Foreign.Count} scanned={pv.ScannedEvents} blocked={pl.DeletesBlocked}");
+    }
+    catch (Exception e) { Console.WriteLine("EXCEPTION: " + e); }
+    return;
+}
+
 if (args.Contains("--register-agent"))   // (re)create the scheduled task, replacing the pre-rename one
 {
     var exe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MoodleDashboard", "bin", "MoodleDashboard.Agent.exe");

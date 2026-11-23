@@ -158,7 +158,7 @@ public sealed partial class ExportPage
     {
         _ring.IsActive = on;
         foreach (var b in new[] { _previewBtn, _applyBtn, _syncBtn, _connect, _disconnect }) if (on) b.IsEnabled = false;
-        if (!on) { RefreshGoogleState(); _applyBtn.IsEnabled = _gPreview is not null; }
+        if (!on) { RefreshGoogleState(); _applyBtn.IsEnabled = _gPreview?.Plan.HasChanges == true; }
     }
 
     async Task ConnectAsync()
@@ -226,8 +226,8 @@ public sealed partial class ExportPage
             _gPreview = await Task.Run(() => A.GoogleSync.PreviewAsync(sourceHealthy: true));
             ShowReview(_gPreview);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or GoogleApiException or GoogleAuthRequiredException or HttpRequestException)
-        { _gPreview = null; Show(ex.Message, InfoBarSeverity.Error); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Fail(ex); _gPreview = null; }
         finally { Busy(false); }
     }
 
@@ -236,15 +236,16 @@ public sealed partial class ExportPage
         if (_gPreview is null) return;
         var p = _gPreview;
         if (p.Plan.DeletesBlocked && _confirmMass.IsChecked != true) { Show("Tick the confirmation box for the many deletions first.", InfoBarSeverity.Warning); return; }
+        var allowMass = _confirmMass.IsChecked == true;     // read UI state here, on the UI thread — never inside Task.Run
         Busy(true);
         try
         {
-            var r = await Task.Run(() => A.GoogleSync.ApplyAsync(p, allowMassDelete: _confirmMass.IsChecked == true));
+            var r = await Task.Run(() => A.GoogleSync.ApplyAsync(p, allowMass));
             ClearPreview();
             Show(r.Summary + (r.Errors.Count > 0 ? "\n" + string.Join("\n", r.Errors.Take(5)) : ""), r.Errors.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
-        catch (Exception ex) when (ex is GoogleApiException or GoogleAuthRequiredException or HttpRequestException or TimeoutException)
-        { Show(ex.Message, InfoBarSeverity.Error); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Fail(ex); }
         finally { Busy(false); }
     }
 
@@ -258,8 +259,8 @@ public sealed partial class ExportPage
             Show(r.Summary + (r.Errors.Count > 0 ? "\n" + string.Join("\n", r.Errors.Take(5)) : ""), r.Errors.Count > 0 || r.DeletesBlocked ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
             if (r.DeletesBlocked) await PreviewAsync();     // show what was held back
         }
-        catch (Exception ex) when (ex is InvalidOperationException or GoogleApiException or GoogleAuthRequiredException or HttpRequestException or TimeoutException)
-        { Show(ex.Message, InfoBarSeverity.Error); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Fail(ex); }
         finally { Busy(false); }
     }
 
@@ -276,8 +277,8 @@ public sealed partial class ExportPage
             ClearPreview();
             Show(r.Summary, r.Errors.Count > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or GoogleApiException or GoogleAuthRequiredException or HttpRequestException or TimeoutException)
-        { Show(ex.Message, InfoBarSeverity.Error); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Fail(ex); }
         finally { Busy(false); }
     }
 
@@ -379,7 +380,7 @@ public sealed partial class ExportPage
                 ClearPreview();
                 await PreviewAsync();
             }
-            catch (Exception ex) when (ex is GoogleApiException or GoogleAuthRequiredException or HttpRequestException or TimeoutException) { Show(ex.Message, InfoBarSeverity.Error); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { Fail(ex); }
             finally { Busy(false); }
         };
         row.Children.Add(selStrong); row.Children.Add(selNone); row.Children.Add(delete);
@@ -390,6 +391,14 @@ public sealed partial class ExportPage
             Header = $"Already in your calendars — old imports ({p.Foreign.Count})", Content = panel, IsExpanded = true,
             HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
         };
+    }
+
+    /// <summary>Shows an error in the banner and writes the full exception to the log (handlers are async void: nothing may escape).</summary>
+    void Fail(Exception ex)
+    {
+        MoodleDashboard.Core.FileLog.Write("app", "export page: " + ex);
+        Show(ex is GoogleAuthRequiredException ? ex.Message + " Press “Connect to Google…” again." : ex.Message, ex is GoogleAuthRequiredException ? InfoBarSeverity.Warning : InfoBarSeverity.Error);
+        RefreshGoogleState();
     }
 
     async Task<bool> ConfirmAsync(string title, string text, string primary)
