@@ -9,6 +9,7 @@
                     PaneDisplayMode="Left" OpenPaneLength="200" SelectionChanged="Nav_SelectionChanged">
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Assignments" Tag="assignments" Icon="List" />
+            <NavigationViewItem Content="Calendar" Tag="calendar" Icon="Calendar" />
             <NavigationViewItem Content="Settings" Tag="settings" Icon="Setting" />
         </NavigationView.MenuItems>
         <Frame x:Name="ContentFrame" />

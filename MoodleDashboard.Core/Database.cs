@@ -22,6 +22,8 @@ public class Database
         CREATE TABLE IF NOT EXISTS notifications_sent(assignment_id INTEGER, kind TEXT, key TEXT, sent_at INTEGER,
             PRIMARY KEY(assignment_id, kind, key));
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, title TEXT, start_at INTEGER, end_at INTEGER, all_day INTEGER,
+            location TEXT, description TEXT, url TEXT, source TEXT, course_name TEXT);
         """);
     }
 
@@ -167,6 +169,38 @@ public class Database
         while (r.Read())
             l.Add(new(r.GetInt64(0), r.GetInt64(1), DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(2)), r.GetString(3), r.GetString(4), (ChangeKind)r.GetInt32(5)));
         return l;
+    }
+
+    // ---- calendar events (read by the UI; written by a future fetcher)
+    public List<CalendarEvent> GetEvents(DateTimeOffset from, DateTimeOffset to)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,title,start_at,end_at,all_day,location,description,url,source,course_name FROM events WHERE start_at < $to AND end_at >= $from ORDER BY start_at";
+        cmd.Parameters.AddWithValue("$from", from.ToUnixTimeSeconds());
+        cmd.Parameters.AddWithValue("$to", to.ToUnixTimeSeconds());
+        using var r = cmd.ExecuteReader();
+        var l = new List<CalendarEvent>();
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        while (r.Read())
+            l.Add(new(r.GetString(0), r.GetString(1), DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(2)),
+                DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(3)), r.GetInt32(4) != 0, S(5), S(6), S(7), S(8) ?? "", S(9)));
+        return l;
+    }
+
+    public void UpsertEvents(IEnumerable<CalendarEvent> events)
+    {
+        using var c = Open();
+        using var tx = c.BeginTransaction();
+        foreach (var e in events)
+            Exec(c, """
+                INSERT INTO events(id,title,start_at,end_at,all_day,location,description,url,source,course_name)
+                VALUES($id,$t,$s,$e,$a,$l,$d,$u,$src,$cn)
+                ON CONFLICT(id) DO UPDATE SET title=$t,start_at=$s,end_at=$e,all_day=$a,location=$l,description=$d,url=$u,source=$src,course_name=$cn
+                """,
+                ("$id", e.Id), ("$t", e.Title), ("$s", e.Start.ToUnixTimeSeconds()), ("$e", e.End.ToUnixTimeSeconds()),
+                ("$a", e.AllDay ? 1 : 0), ("$l", e.Location), ("$d", e.Description), ("$u", e.Url), ("$src", e.Source), ("$cn", e.CourseName));
+        tx.Commit();
     }
 
     // ---- notifications

@@ -35,6 +35,9 @@
             <TextBlock Text="Notifications" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
             <StackPanel x:Name="NotifyPanel" Spacing="2" />
 
+            <TextBlock Text="Calendar" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <ToggleSwitch x:Name="DemoSwitch" Header="Show demo events (for reviewing the calendar UI)" Toggled="DemoSwitch_Toggled" />
+
             <TextBlock Text="Word template" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
             <TextBox x:Name="NameBox" Header="Name (placeholder {{Author}})" LostFocus="NameBox_LostFocus" />
             <TextBox x:Name="MatrikelBox" Header="Matrikelnummer (placeholder {{Matrikel}})" LostFocus="MatrikelBox_LostFocus" />

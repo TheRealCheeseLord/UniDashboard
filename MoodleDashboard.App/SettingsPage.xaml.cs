@@ -33,6 +33,7 @@ public sealed partial class SettingsPage : Page
         IntervalBox.Value = S.SyncIntervalMinutes;
         ReminderBox.Value = S.ReminderHours;
         AgentSwitch.IsOn = AgentScheduler.IsRegistered();
+        DemoSwitch.IsOn = S.ShowDemoEvents;
         NameBox.Text = S.StudentName;
         MatrikelBox.Text = S.Matrikelnummer;
         TemplateBox.Text = S.TemplatePath;
@@ -160,6 +161,8 @@ public sealed partial class SettingsPage : Page
         }
         catch (Exception ex) { Show("Task Scheduler error: " + ex.Message, InfoBarSeverity.Error); }
     }
+
+    void DemoSwitch_Toggled(object sender, RoutedEventArgs e) { if (!_loading) S.ShowDemoEvents = DemoSwitch.IsOn; }
 
     // ---- template
     async void BrowseTemplate_Click(object sender, RoutedEventArgs e)

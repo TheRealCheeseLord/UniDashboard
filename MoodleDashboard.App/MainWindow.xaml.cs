@@ -22,7 +22,8 @@ public sealed partial class MainWindow : Window
     void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        ContentFrame.Navigate(tag == "settings" ? typeof(SettingsPage) : typeof(AssignmentsPage), _pendingAssignment);
+        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), _ => typeof(AssignmentsPage) };
+        ContentFrame.Navigate(page, tag == "assignments" ? _pendingAssignment : null);
     }
 
     /// <summary>Handles "--assignment=ID" (toast deep link) and "--login".</summary>
@@ -34,11 +35,17 @@ public sealed partial class MainWindow : Window
             {
                 _pendingAssignment = id;
                 if (ContentFrame.Content is AssignmentsPage page) page.ShowAssignment(id);
+                else if (Nav.SelectedItem == Nav.MenuItems[0]) ContentFrame.Navigate(typeof(AssignmentsPage), id);
                 else Nav.SelectedItem = Nav.MenuItems[0];
+            }
+            else if (part == "--calendar" || part.StartsWith("--calendar="))
+            {
+                CalendarPage.RequestedView = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
+                Nav.SelectedItem = Nav.MenuItems[1];
             }
             else if (part == "--login")
             {
-                Nav.SelectedItem = Nav.MenuItems[1];
+                Nav.SelectedItem = Nav.MenuItems[2];
                 _pendingLogin = true;
             }
         }

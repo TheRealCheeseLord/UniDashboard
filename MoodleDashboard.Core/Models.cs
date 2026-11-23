@@ -35,6 +35,12 @@ public enum ChangeKind
     Submitted = 32,
 }
 
+/// <summary>A calendar event (to be fetched by a future feature; the UI only displays them).</summary>
+public record CalendarEvent(
+    string Id, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay,
+    string? Location = null, string? Description = null, string? Url = null,
+    string Source = "", string? CourseName = null);
+
 public record Snapshot(long Id, long AssignmentId, DateTimeOffset TakenAt, string Hash, string Json, ChangeKind Kinds);
 
 /// <summary>Raw fetched data for one assignment, before change detection.</summary>
