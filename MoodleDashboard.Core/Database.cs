@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using MoodleDashboard.Core.Export;
 using MoodleDashboard.Core.Univie;
 
 namespace MoodleDashboard.Core;
@@ -38,7 +39,23 @@ public class Database
         CREATE TABLE IF NOT EXISTS enrolment_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT, enrolment_key TEXT, taken_at INTEGER, hash TEXT, json TEXT, change_kinds TEXT);
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, title TEXT, start_at INTEGER, end_at INTEGER, all_day INTEGER,
             location TEXT, description TEXT, url TEXT, source TEXT, course_name TEXT);
+        CREATE TABLE IF NOT EXISTS export_state(item_key TEXT PRIMARY KEY, content_hash TEXT, seq INTEGER);
+        CREATE TABLE IF NOT EXISTS google_sync_state(item_key TEXT PRIMARY KEY, calendar_id TEXT, event_id TEXT, content_hash TEXT, etag TEXT,
+            remote_updated TEXT, synced_at INTEGER);
+        CREATE TABLE IF NOT EXISTS google_sync_log(id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, mode TEXT, summary TEXT);
         """);
+        MigrateAddColumn(c, "univie_sessions", "prev_key", "TEXT");
+    }
+
+    /// <summary>Adds a column to an existing table if it is missing (tables created by older versions).</summary>
+    static void MigrateAddColumn(SqliteConnection c, string table, string column, string type)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table})";
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+                if (string.Equals(r.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return;
+        Exec(c, $"ALTER TABLE {table} ADD COLUMN {column} {type}");
     }
 
     public SqliteConnection Open()
@@ -275,12 +292,12 @@ public class Database
             Exec(c, "DELETE FROM univie_sessions WHERE enrolment_key=$k", ("$k", e.Key));
             foreach (var s in sessions)
                 Exec(c, """
-                    INSERT OR REPLACE INTO univie_sessions(session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room)
-                    VALUES($k,$e,$b,$en,$r,$h,$st,$ch,$fs,$lc,$pb,$pe,$pr)
+                    INSERT OR REPLACE INTO univie_sessions(session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room,prev_key)
+                    VALUES($k,$e,$b,$en,$r,$h,$st,$ch,$fs,$lc,$pb,$pe,$pr,$pk)
                     """,
                     ("$k", s.Key), ("$e", s.EnrolmentKey), ("$b", s.Begin.ToUnixTimeSeconds()), ("$en", s.End.ToUnixTimeSeconds()), ("$r", s.Room),
                     ("$h", s.Hash), ("$st", (int)s.Status), ("$ch", (int)s.Change), ("$fs", s.FirstSeenAt.ToUnixTimeSeconds()),
-                    ("$lc", s.LastChangedAt.ToUnixTimeSeconds()), ("$pb", s.PrevBegin?.ToUnixTimeSeconds()), ("$pe", s.PrevEnd?.ToUnixTimeSeconds()), ("$pr", s.PrevRoom));
+                    ("$lc", s.LastChangedAt.ToUnixTimeSeconds()), ("$pb", s.PrevBegin?.ToUnixTimeSeconds()), ("$pe", s.PrevEnd?.ToUnixTimeSeconds()), ("$pr", s.PrevRoom), ("$pk", s.PrevKey));
         }
         if (exams is not null)
         {
@@ -324,9 +341,10 @@ public class Database
         PrevBegin = r.IsDBNull(10) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(10)),
         PrevEnd = r.IsDBNull(11) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(11)),
         PrevRoom = r.IsDBNull(12) ? null : r.GetString(12),
+        PrevKey = r.IsDBNull(13) ? null : r.GetString(13),
     };
 
-    const string SessCols = "session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room";
+    const string SessCols = "session_key,enrolment_key,begin_at,end_at,room,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_end,prev_room,prev_key";
 
     public List<SessionRecord> GetSessions(string enrolmentKey)
     {
@@ -440,6 +458,77 @@ public class Database
         while (r.Read())
             l.Add(new(r.GetInt64(0), 0, DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(1)), r.GetString(2), r.GetString(3), ChangeKind.None, r.IsDBNull(4) ? "" : r.GetString(4)));
         return l;
+    }
+
+    // ---- export state (ICS SEQUENCE counters)
+    public Dictionary<string, (string Hash, int Seq)> GetExportState()
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT item_key,content_hash,seq FROM export_state";
+        using var r = cmd.ExecuteReader();
+        var d = new Dictionary<string, (string, int)>();
+        while (r.Read()) d[r.GetString(0)] = (r.IsDBNull(1) ? "" : r.GetString(1), r.GetInt32(2));
+        return d;
+    }
+
+    public void SaveExportState(IEnumerable<(string Key, string Hash, int Seq)> rows)
+    {
+        using var c = Open();
+        using var tx = c.BeginTransaction();
+        foreach (var (k, h, s) in rows)
+            Exec(c, "INSERT INTO export_state(item_key,content_hash,seq) VALUES($k,$h,$s) ON CONFLICT(item_key) DO UPDATE SET content_hash=$h, seq=$s",
+                ("$k", k), ("$h", h), ("$s", s));
+        tx.Commit();
+    }
+
+    // ---- google sync state
+    public Dictionary<string, SyncStateRow> GetGoogleState()
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT item_key,calendar_id,event_id,content_hash,etag,remote_updated FROM google_sync_state";
+        using var r = cmd.ExecuteReader();
+        var d = new Dictionary<string, SyncStateRow>();
+        while (r.Read())
+            d[r.GetString(0)] = new(r.GetString(0), r.GetString(1), r.GetString(2), r.IsDBNull(3) ? "" : r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5));
+        return d;
+    }
+
+    public void SaveGoogleState(SyncStateRow s)
+    {
+        using var c = Open();
+        Exec(c, """
+            INSERT INTO google_sync_state(item_key,calendar_id,event_id,content_hash,etag,remote_updated,synced_at) VALUES($k,$c,$e,$h,$t,$u,$s)
+            ON CONFLICT(item_key) DO UPDATE SET calendar_id=$c,event_id=$e,content_hash=$h,etag=$t,remote_updated=$u,synced_at=$s
+            """, ("$k", s.ItemKey), ("$c", s.CalendarId), ("$e", s.EventId), ("$h", s.ContentHash), ("$t", s.Etag), ("$u", s.RemoteUpdated), ("$s", DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+    }
+
+    public void DeleteGoogleState(string itemKey)
+    {
+        using var c = Open();
+        Exec(c, "DELETE FROM google_sync_state WHERE item_key=$k", ("$k", itemKey));
+    }
+
+    public void ClearGoogleState()
+    {
+        using var c = Open();
+        Exec(c, "DELETE FROM google_sync_state");
+    }
+
+    public void AddGoogleLog(DateTimeOffset at, string mode, string summary)
+    {
+        using var c = Open();
+        Exec(c, "INSERT INTO google_sync_log(at,mode,summary) VALUES($a,$m,$s)", ("$a", at.ToUnixTimeSeconds()), ("$m", mode), ("$s", summary));
+    }
+
+    public (DateTimeOffset At, string Mode, string Summary)? GetLastGoogleLog()
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT at,mode,summary FROM google_sync_log ORDER BY id DESC LIMIT 1";
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(0)), r.GetString(1), r.GetString(2)) : null;
     }
 
     // ---- notifications

@@ -52,6 +52,8 @@ internal static class Program
             Log($"sync: {result.Assignments} assignments, {result.Changed} changed, {result.Notified} toasts" +
                 (result.Error is null ? "" : $", error: {result.Error}"));
 
+            await GoogleAutoSyncAsync(db, settings, http, healthy: result.Error is null, Log);
+
             if (result.LoginRequired && settings.NotifyLoginRequired)
             {
                 // Dedupe so we don't toast every 30 minutes: once per day.
@@ -68,6 +70,33 @@ internal static class Program
         {
             Log("fatal: " + e);
             return 2;
+        }
+    }
+
+    /// <summary>Background Google sync: only when enabled (after one manual apply). Creates/updates/deletes within the safety guards; never the clean-up.</summary>
+    static async Task GoogleAutoSyncAsync(Database db, AppSettings settings, HttpClient http, bool healthy, Action<string> log)
+    {
+        if (!settings.GoogleAutoSync || !settings.GoogleApplied || string.IsNullOrEmpty(settings.GoogleTargetCalendarId)) return;
+        var creds = new MoodleDashboard.Core.Google.GoogleCredentialStore();
+        var auth = new MoodleDashboard.Core.Google.GoogleAuth(http, creds);
+        if (!auth.IsConnected) return;
+
+        string? problem = null;
+        try
+        {
+            var api = new MoodleDashboard.Core.Google.GoogleCalendarClient(http, (force, ct) => auth.GetAccessTokenAsync(force, ct));
+            var r = await new MoodleDashboard.Core.Google.GoogleSyncService(db, settings, api, null, log).SyncAsync(healthy);
+            if (r.DeletesBlocked) problem = "Google Calendar: many deletions were held back — open MoodleDashboard → Export to review.";
+            else if (r.Errors.Count > 0) problem = $"Google Calendar sync finished with {r.Errors.Count} problem(s).";
+        }
+        catch (MoodleDashboard.Core.Google.GoogleAuthRequiredException e) { log("google: " + e.Message); problem = "Google Calendar needs reconnecting — open MoodleDashboard → Export."; }
+        catch (Exception e) when (e is HttpRequestException or MoodleDashboard.Core.Google.GoogleApiException or InvalidOperationException or TaskCanceledException or TimeoutException)
+        { log("google sync failed: " + e.Message); problem = "Google Calendar sync failed: " + e.Message; }
+
+        if (problem is not null && !db.WasSent(0, "GoogleSync", DateTime.Today.ToString("yyyyMMdd")))
+        {
+            ToastNotifier.Show("Google Calendar", problem, "login=1");
+            db.MarkSent(0, "GoogleSync", DateTime.Today.ToString("yyyyMMdd"), DateTimeOffset.UtcNow);
         }
     }
 

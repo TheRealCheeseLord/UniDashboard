@@ -1,0 +1,92 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:icalendar-ruby
+CALSCALE:GREGORIAN
+BEGIN:VTIMEZONE
+TZID:Europe/Vienna
+BEGIN:DAYLIGHT
+DTSTART:20000326T030000
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3
+TZNAME:CEST
+END:DAYLIGHT
+BEGIN:STANDARD
+DTSTART:19991031T020000
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10
+TZNAME:CET
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:d91743ad-60cb-451f-b155-7ba8e461dfbc
+DTSTART;TZID=Europe/Vienna:20261009T094500
+DTEND;TZID=Europe/Vienna:20261009T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:33cf1aae-981e-4357-944b-03bb2301e249
+DTSTART;TZID=Europe/Vienna:20261016T094500
+DTEND;TZID=Europe/Vienna:20261016T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:75e24159-2a8e-4490-bc38-ebe3289dbacd
+DTSTART;TZID=Europe/Vienna:20261106T094500
+DTEND;TZID=Europe/Vienna:20261106T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:9eacc816-0002-4bd2-b705-2ce1291e4759
+DTSTART;TZID=Europe/Vienna:20261113T094500
+DTEND;TZID=Europe/Vienna:20261113T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:b57746da-240e-496c-be5b-6d41b949a7f6
+DTSTART;TZID=Europe/Vienna:20261127T094500
+DTEND;TZID=Europe/Vienna:20261127T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:4d6d7a72-86bf-4e5a-9c37-af099d1cd746
+DTSTART;TZID=Europe/Vienna:20261211T094500
+DTEND;TZID=Europe/Vienna:20261211T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261123T231241Z
+UID:bf846c2b-efef-4e6a-ba83-002b0ff691fe
+DTSTART;TZID=Europe/Vienna:20270115T094500
+DTEND;TZID=Europe/Vienna:20270115T130000
+LOCATION:Seminarraum 5 (Kath) Schenkenstraße 1.OG
+SUMMARY:010004-1 PS Einführung in das wissenschaftliche Arbeiten
+URL;VALUE=URI:https://ufind.univie.ac.at/de/course.html?lv=010004&semester=
+ 2026W#gr1
+END:VEVENT
+END:VCALENDAR

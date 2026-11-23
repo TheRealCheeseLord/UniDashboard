@@ -23,6 +23,12 @@ public partial class App : Application
     public SyncService Sync { get; }
     readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };
 
+    // Google Calendar (user-provided OAuth client; tokens DPAPI-encrypted)
+    public MoodleDashboard.Core.Google.GoogleCredentialStore GoogleCreds { get; } = new();
+    public MoodleDashboard.Core.Google.GoogleAuth GoogleAuth { get; }
+    public MoodleDashboard.Core.Google.GoogleCalendarClient GoogleApi { get; }
+    public MoodleDashboard.Core.Google.GoogleSyncService GoogleSync { get; }
+
     public App()
     {
         InitializeComponent();
@@ -34,6 +40,9 @@ public partial class App : Application
         Sync = new SyncService(Db, Settings, Client, notifier, m => FileLog.Write("app", m));
         Sync.Univie = new MoodleDashboard.Core.Univie.UnivieSyncService(Db, Settings, new MoodleDashboard.Core.Uspace.UspaceClient(Settings),
             new MoodleDashboard.Core.Ufind.UfindClient(MoodleDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: false, m => FileLog.Write("app", m));
+        GoogleAuth = new MoodleDashboard.Core.Google.GoogleAuth(_http, GoogleCreds);
+        GoogleApi = new MoodleDashboard.Core.Google.GoogleCalendarClient(_http, (force, ct) => GoogleAuth.GetAccessTokenAsync(force, ct));
+        GoogleSync = new MoodleDashboard.Core.Google.GoogleSyncService(Db, Settings, GoogleApi, null, m => FileLog.Write("app", m));
         TemplateBuilder.EnsureDefaultTemplate();
     }
 

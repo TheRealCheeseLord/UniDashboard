@@ -66,6 +66,26 @@ public class AppSettings(Database db)
         catch (JsonException) { return default; }
     }
 
+    // Calendar export
+    public bool ExportSessions { get => GetBool("export_sessions", true); set => SetBool("export_sessions", value); }
+    public bool ExportExams { get => GetBool("export_exams", true); set => SetBool("export_exams", value); }
+    public bool ExportFutureOnly { get => GetBool("export_future_only", true); set => SetBool("export_future_only", value); }
+    public int ExportAlarmMinutes { get => GetInt("export_alarm_min", 0); set => Set("export_alarm_min", value.ToString()); }
+    public string ExportFolder { get => Get("export_folder", @"C:\Users\baric\Documents\School\Uni"); set => Set("export_folder", value.Trim()); }
+
+    // Google Calendar
+    public string GoogleTargetCalendarId { get => Get("google_target_cal", ""); set => Set("google_target_cal", value); }
+    public string GoogleTargetCalendarName { get => Get("google_target_cal_name", ""); set => Set("google_target_cal_name", value); }
+    public List<string> GoogleScanCalendarIds
+    {
+        get => ReadJson<List<string>>("google_scan_cals") ?? [];
+        set => Set("google_scan_cals", JsonSerializer.Serialize(value));
+    }
+    public bool GoogleAutoSync { get => GetBool("google_auto_sync", false); set => SetBool("google_auto_sync", value); }
+    public bool GoogleOverwriteEdits { get => GetBool("google_overwrite_edits", false); set => SetBool("google_overwrite_edits", value); }
+    /// <summary>True after one successful manual apply (auto-sync can only be enabled then).</summary>
+    public bool GoogleApplied { get => GetBool("google_applied", false); set => SetBool("google_applied", value); }
+
     public bool ShowExams { get => GetBool("show_exams", true); set => SetBool("show_exams", value); }
     public bool ShowMovedRemoved { get => GetBool("show_moved_removed", true); set => SetBool("show_moved_removed", value); }
     public bool NotifyCourse(string kind) => GetBool("notify_" + kind, Univie.CourseKinds.All.First(k => k.Kind == kind).Default);

@@ -26,7 +26,7 @@ public sealed partial class MainWindow : Window
     void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), "planner" => typeof(PlannerPage), _ => typeof(AssignmentsPage) };
+        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), "planner" => typeof(PlannerPage), "export" => typeof(ExportPage), _ => typeof(AssignmentsPage) };
         object? param = tag switch { "assignments" => _pendingAssignment, "courses" => _pendingCourse, _ => null };
         if (tag == "courses") _pendingCourse = null;
         ContentFrame.Navigate(page, param);
@@ -64,6 +64,7 @@ public sealed partial class MainWindow : Window
                 PlannerPage.RequestedTab = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
                 Nav.SelectedItem = NavItem("planner");
             }
+            else if (part == "--export") Nav.SelectedItem = NavItem("export");
             else if (part == "--login")
             {
                 Nav.SelectedItem = NavItem("settings");

@@ -58,7 +58,7 @@ public static class SessionDiffer
             {
                 // unchanged: keep history labels (moved/changed) and first-seen time
                 n.FirstSeenAt = o.FirstSeenAt; n.LastChangedAt = o.LastChangedAt; n.Change = o.Change;
-                n.PrevBegin = o.PrevBegin; n.PrevEnd = o.PrevEnd; n.PrevRoom = o.PrevRoom;
+                n.PrevBegin = o.PrevBegin; n.PrevEnd = o.PrevEnd; n.PrevRoom = o.PrevRoom; n.PrevKey = o.PrevKey;
                 result.Add(n);
             }
             else
@@ -101,7 +101,7 @@ public static class SessionDiffer
         foreach (var (o, n) in pairs)
         {
             n.FirstSeenAt = o.FirstSeenAt; n.Change = SessionChange.Moved;
-            n.PrevBegin = o.Begin; n.PrevEnd = o.End; n.PrevRoom = o.Room;
+            n.PrevBegin = o.Begin; n.PrevEnd = o.End; n.PrevRoom = o.Room; n.PrevKey = o.Key;
             result.Add(n);
             events.Add(new(SessionChange.Moved, n, o));
         }

@@ -1,0 +1,40 @@
+<Page
+    x:Class="MoodleDashboard.App.ExportPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Spacing="14" Padding="32,20,32,32" MaxWidth="980" HorizontalAlignment="Left">
+            <TextBlock Text="Calendar export" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="Take your lectures and registered exams to your own calendar. Both ways give every entry a stable id, so exporting again updates entries instead of duplicating them." />
+            <InfoBar x:Name="Info" IsOpen="False" IsClosable="True" />
+
+            <!-- What to export (shared by .ics and Google) -->
+            <TextBlock Text="What to export" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <StackPanel Orientation="Horizontal" Spacing="24">
+                <CheckBox x:Name="SessionsBox" Content="Lectures / course sessions" IsChecked="True" Click="Options_Changed" />
+                <CheckBox x:Name="ExamsBox" Content="Exams I'm registered for" IsChecked="True" Click="Options_Changed" />
+                <CheckBox x:Name="FutureBox" Content="Only upcoming" IsChecked="True" Click="Options_Changed" />
+            </StackPanel>
+            <TextBlock x:Name="CountText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+            <!-- .ics -->
+            <TextBlock Text=".ics file" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,10,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <ComboBox x:Name="AlarmBox" Header="Reminder" SelectedIndex="0" MinWidth="160" SelectionChanged="Alarm_SelectionChanged">
+                    <ComboBoxItem Content="None" Tag="0" />
+                    <ComboBoxItem Content="10 minutes before" Tag="10" />
+                    <ComboBoxItem Content="30 minutes before" Tag="30" />
+                    <ComboBoxItem Content="1 hour before" Tag="60" />
+                </ComboBox>
+                <Button Content="Export .ics…" Click="ExportIcs_Click" VerticalAlignment="Bottom" Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="Importing the file twice does not create duplicates: every entry keeps the same id and its revision number rises when it changes. (u:find's own iCal link generates new random ids on every download, which is why importing it repeatedly duplicates everything.)" />
+
+            <!-- Google (filled in code) -->
+            <TextBlock Text="Google Calendar" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,18,0,0" />
+            <StackPanel x:Name="GooglePanel" Spacing="10" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

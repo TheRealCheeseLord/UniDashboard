@@ -46,6 +46,8 @@ public class SessionRecord
     public DateTimeOffset? PrevBegin { get; set; }
     public DateTimeOffset? PrevEnd { get; set; }
     public string? PrevRoom { get; set; }
+    /// <summary>Key of the session this one was moved from (lets exports keep the same calendar event).</summary>
+    public string? PrevKey { get; set; }
 }
 
 public enum SessionStatus { Active = 0, Removed = 1 }

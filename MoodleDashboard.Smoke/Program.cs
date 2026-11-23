@@ -32,6 +32,17 @@ if (args.Contains("--univie-sync"))
     return;
 }
 
+if (args.Contains("--export-ics"))   // dev check: writes the .ics of the real data to the given path (does not touch export state)
+{
+    var path = args[Array.IndexOf(args, "--export-ics") + 1];
+    var now = DateTimeOffset.Now;
+    var items = MoodleDashboard.Core.Export.ExportBuilder.Build(db, new MoodleDashboard.Core.Export.ExportOptions(), now);
+    var (seqs, _) = MoodleDashboard.Core.Export.IcsWriter.NextSequences(items, new Dictionary<string, (string, int)>());
+    File.WriteAllText(path, MoodleDashboard.Core.Export.IcsWriter.Write(items, i => seqs[i.Key], now, 30), new System.Text.UTF8Encoding(false));
+    Console.WriteLine($"{items.Count} items ({items.Count(i => i.Kind == MoodleDashboard.Core.Export.ExportKind.Exam)} exams) -> {path}");
+    return;
+}
+
 if (args.Contains("--register-agent"))   // (re)create the scheduled task, replacing the pre-rename one
 {
     var exe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MoodleDashboard", "bin", "MoodleDashboard.Agent.exe");
