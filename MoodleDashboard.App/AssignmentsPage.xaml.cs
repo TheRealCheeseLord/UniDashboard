@@ -193,14 +193,13 @@ public sealed partial class AssignmentsPage : Page
             }
             var bytes = DocxGenerator.Generate(template, DocxGenerator.BuildValues(a, A.Settings, A.Client.AssignmentUrl(a.Cmid)));
 
-            var picker = new FileSavePicker { SuggestedStartLocation = PickerLocationId.Downloads };
-            InitializeWithWindow.Initialize(picker, A.Window!.Hwnd);
-            picker.FileTypeChoices.Add("Word document", [".docx"]);
-            picker.SuggestedFileName = Path.GetFileNameWithoutExtension(DocxGenerator.SuggestFileName(a));
-            var file = await picker.PickSaveFileAsync();
-            if (file is null) return;
-            await FileIO.WriteBytesAsync(file, bytes);
-            Show("Saved " + file.Name, InfoBarSeverity.Success, file);
+            // Opens in the configured folder (Settings → Word template), filename prefilled.
+            var folder = A.Settings.DocxFolder;
+            var startDir = Directory.Exists(folder) ? folder : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var path = NativeSaveDialog.Show(A.Window!.Hwnd, startDir, DocxGenerator.SuggestFileName(a));
+            if (path is null) return;
+            await File.WriteAllBytesAsync(path, bytes);
+            Show("Saved " + Path.GetFileName(path), InfoBarSeverity.Success, await StorageFile.GetFileFromPathAsync(path));
         }
         catch (Exception ex) { Show("Could not generate .docx: " + ex.Message, InfoBarSeverity.Error); }
     }

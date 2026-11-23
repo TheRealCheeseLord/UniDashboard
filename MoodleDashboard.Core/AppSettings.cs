@@ -18,6 +18,8 @@ public class AppSettings(Database db)
     public int ReminderHours { get => GetInt("reminder_hours", 24); set => Set("reminder_hours", value.ToString()); }
     public bool AgentEnabled { get => GetBool("agent_enabled", false); set => SetBool("agent_enabled", value); }
     public string TemplatePath { get => Get("template_path", Paths.DefaultTemplate); set => Set("template_path", value); }
+    /// <summary>Folder the "Save as" dialog opens in when generating a .docx.</summary>
+    public string DocxFolder { get => Get("docx_folder", @"C:\Users\baric\Documents\School\Uni"); set => Set("docx_folder", value.Trim()); }
     public string StudentName { get => Get("student_name", ""); set => Set("student_name", value); }
     public string Matrikelnummer { get => Get("matrikelnummer", ""); set => Set("matrikelnummer", value); }
     /// <summary>Hash of credentials the IdP rejected; headless login is not retried with them (avoids account lockout).</summary>

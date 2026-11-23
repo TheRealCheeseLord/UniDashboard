@@ -42,6 +42,8 @@
             <TextBlock Text="Word template" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
             <TextBox x:Name="NameBox" Header="Name (placeholder {{Author}})" LostFocus="NameBox_LostFocus" />
             <TextBox x:Name="MatrikelBox" Header="Matrikelnummer (placeholder {{Matrikel}})" LostFocus="MatrikelBox_LostFocus" />
+            <TextBox x:Name="DocxFolderBox" Header="Folder the .docx save dialog opens in" LostFocus="DocxFolderBox_LostFocus" />
+            <Button Content="Choose folder…" Click="BrowseDocxFolder_Click" />
             <TextBox x:Name="TemplateBox" Header="Template path (.docx / .dotx)" LostFocus="TemplateBox_LostFocus" />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="Browse…" Click="BrowseTemplate_Click" />

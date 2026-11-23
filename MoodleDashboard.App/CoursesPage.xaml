@@ -1,7 +1,36 @@
 <Page
     x:Class="MoodleDashboard.App.CoursesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:MoodleDashboard.App">
+    <Page.Resources>
+        <DataTemplate x:Key="CourseRowTemplate" x:DataType="local:CourseRow">
+            <Grid Padding="4,10,4,10" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Ellipse Width="8" Height="8" Fill="{ThemeResource AccentFillColorDefaultBrush}" VerticalAlignment="Center"
+                         Visibility="{x:Bind UnseenVisibility}" />
+                <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="6,1,6,1">
+                            <TextBlock Text="{x:Bind TypeText}" FontSize="11" />
+                        </Border>
+                        <TextBlock Text="{x:Bind Meta}" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+                <Border Grid.Column="2" Visibility="{x:Bind BadgeVisibility}" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                        CornerRadius="10" Padding="8,2,8,2" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind BadgeText}" FontSize="11" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
     <Grid ColumnSpacing="16" RowSpacing="6" Padding="24,16,24,10">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -24,7 +53,7 @@
                 <TextBlock x:Name="CountText" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
             <InfoBar x:Name="Info" Grid.Row="1" IsOpen="False" IsClosable="True" />
-            <ListView x:Name="CourseList" Grid.Row="2" SelectionChanged="CourseList_SelectionChanged" />
+            <ListView x:Name="CourseList" Grid.Row="2" ItemTemplate="{StaticResource CourseRowTemplate}" SelectionChanged="CourseList_SelectionChanged" />
         </Grid>
 
         <ScrollViewer Grid.Column="1">

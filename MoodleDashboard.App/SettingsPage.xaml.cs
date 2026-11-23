@@ -38,6 +38,7 @@ public sealed partial class SettingsPage : Page
         NameBox.Text = S.StudentName;
         MatrikelBox.Text = S.Matrikelnummer;
         TemplateBox.Text = S.TemplatePath;
+        DocxFolderBox.Text = S.DocxFolder;
         BuildCourses();
         BuildNotifyToggles();
         _loading = false;
@@ -135,6 +136,20 @@ public sealed partial class SettingsPage : Page
     void BaseUrlBox_LostFocus(object sender, RoutedEventArgs e) { if (!_loading) S.MoodleBaseUrl = BaseUrlBox.Text; }
     void NameBox_LostFocus(object sender, RoutedEventArgs e) { if (!_loading) S.StudentName = NameBox.Text; }
     void MatrikelBox_LostFocus(object sender, RoutedEventArgs e) { if (!_loading) S.Matrikelnummer = MatrikelBox.Text; }
+    void DocxFolderBox_LostFocus(object sender, RoutedEventArgs e) { if (!_loading) S.DocxFolder = DocxFolderBox.Text; }
+
+    async void BrowseDocxFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FolderPicker();
+        InitializeWithWindow.Initialize(picker, A.Window!.Hwnd);
+        picker.FileTypeFilter.Add("*");
+        if (await picker.PickSingleFolderAsync() is { } f)
+        {
+            DocxFolderBox.Text = f.Path;
+            S.DocxFolder = f.Path;
+        }
+    }
+
     void TemplateBox_LostFocus(object sender, RoutedEventArgs e) { if (!_loading) S.TemplatePath = TemplateBox.Text; }
 
     void ReminderBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)

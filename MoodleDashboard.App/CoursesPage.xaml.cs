@@ -16,6 +16,21 @@ using MoodleDashboard.Core.Uspace;
 
 namespace MoodleDashboard.App;
 
+public class CourseRow(EnrolmentRecord e)
+{
+    public EnrolmentRecord E { get; } = e;
+    public string Title => E.Title;
+    public string TypeText => string.IsNullOrWhiteSpace(E.Type) ? "—" : E.Type;
+    public string Meta => $"{E.LvNr} · {E.Semester}";
+    public Visibility UnseenVisibility => E.UnseenChange ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility BadgeVisibility => E.Status == "ANGEMELDET" && E.Active ? Visibility.Collapsed : Visibility.Visible;
+    public string BadgeText => !E.Active ? "not enrolled" : E.Status switch
+    {
+        "WARTELISTE" => E.WaitlistPosition is { } w ? $"waitlist #{w}" : "waitlist",
+        var s => s.ToLowerInvariant(),
+    };
+}
+
 public sealed partial class CoursesPage : Page
 {
     static App A => App.Current;
@@ -32,18 +47,13 @@ public sealed partial class CoursesPage : Page
 
     protected override void OnNavigatedTo(NavigationEventArgs e) { if (e.Parameter is string key) _showOnLoad = key; }
 
-    record Row(EnrolmentRecord E)
-    {
-        public override string ToString() =>
-            $"{(E.UnseenChange ? "● " : "")}{E.Title}\n{E.Type} · {E.Semester}" + (E.Status == "ANGEMELDET" ? "" : $" · {E.Status}");
-    }
 
     void Reload()
     {
         var list = A.Db.GetEnrolments();
         _selecting = true;
-        CourseList.ItemsSource = list.Select(e => new Row(e)).ToList();
-        if (_current is { } c) CourseList.SelectedItem = ((List<Row>)CourseList.ItemsSource).FirstOrDefault(r => r.E.Key == c.Key);
+        CourseList.ItemsSource = list.Select(e => new CourseRow(e)).ToList();
+        if (_current is { } c) CourseList.SelectedItem = ((List<CourseRow>)CourseList.ItemsSource).FirstOrDefault(r => r.E.Key == c.Key);
         _selecting = false;
         CountText.Text = list.Count == 0 ? "" : $"{list.Count} courses";
         EmptyHint.Visibility = list.Count == 0 && _current is null ? Visibility.Visible : Visibility.Collapsed;
@@ -58,7 +68,7 @@ public sealed partial class CoursesPage : Page
 
     void CourseList_SelectionChanged(object s, SelectionChangedEventArgs e)
     {
-        if (!_selecting && CourseList.SelectedItem is Row r) Show(r.E.Key);
+        if (!_selecting && CourseList.SelectedItem is CourseRow r) Show(r.E.Key);
     }
 
     static string Best(Dictionary<string, string> d) =>
@@ -69,6 +79,12 @@ public sealed partial class CoursesPage : Page
         var e = A.Db.GetEnrolment(key);
         if (e is null) return;
         _current = e;
+        if (CourseList.ItemsSource is List<CourseRow> rows && (CourseList.SelectedItem as CourseRow)?.E.Key != key)
+        {
+            _selecting = true;
+            CourseList.SelectedItem = rows.FirstOrDefault(r => r.E.Key == key);
+            _selecting = false;
+        }
         EmptyHint.Visibility = Visibility.Collapsed;
         Detail.Visibility = Visibility.Visible;
 
