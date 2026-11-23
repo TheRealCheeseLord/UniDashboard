@@ -1,0 +1,116 @@
+{
+  "lastattempt": {
+    "submission": {
+      "id": 22334726,
+      "userid": 12345,
+      "attemptnumber": 0,
+      "timecreated": 1792538735,
+      "timemodified": 1792538735,
+      "timestarted": null,
+      "status": "new",
+      "groupid": 0,
+      "assignment": 1339269,
+      "latest": 1,
+      "plugins": [
+        {
+          "type": "file",
+          "name": "File submissions",
+          "fileareas": [
+            {
+              "area": "submission_files",
+              "files": []
+            }
+          ]
+        },
+        {
+          "type": "comments",
+          "name": "Submission comments"
+        }
+      ]
+    },
+    "submissiongroupmemberswhoneedtosubmit": [],
+    "submissionsenabled": true,
+    "locked": false,
+    "graded": false,
+    "canedit": true,
+    "caneditowner": true,
+    "cansubmit": false,
+    "extensionduedate": null,
+    "timelimit": 0,
+    "blindmarking": false,
+    "gradingstatus": "notgraded",
+    "usergroups": [
+      2758447
+    ]
+  },
+  "assignmentdata": {
+    "attachments": {
+      "intro": [
+        {
+          "filename": "file 1",
+          "filepath": "/",
+          "filesize": 92020,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-1?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        },
+        {
+          "filename": "file 2",
+          "filepath": "/",
+          "filesize": 2070046,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-2?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        },
+        {
+          "filename": "file 3",
+          "filepath": "/",
+          "filesize": 101672,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-3?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        },
+        {
+          "filename": "file 4",
+          "filepath": "/",
+          "filesize": 89707,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-4?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        },
+        {
+          "filename": "file 5",
+          "filepath": "/",
+          "filesize": 1639385,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-5?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        },
+        {
+          "filename": "file 6",
+          "filepath": "/",
+          "filesize": 83823,
+          "fileurl": "https://moodle.example/webservice/pluginfile.php/f-6?forcedownload=1",
+          "timemodified": 1791527342,
+          "mimetype": "application/pdf",
+          "isexternalfile": false,
+          "icon": "f/pdf"
+        }
+      ],
+      "activity": []
+    },
+    "activity": "<p>Anonymised text</p>",
+    "activityformat": 1
+  },
+  "warnings": []
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="MoodleLite.Agent/MoodleLite.Agent.csproj" />
+  <Project Path="MoodleLite.App/MoodleLite.App.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="MoodleLite.Core.Tests/MoodleLite.Core.Tests.csproj" />
+  <Project Path="MoodleLite.Core/MoodleLite.Core.csproj" />
+  <Project Path="MoodleLite.Smoke/MoodleLite.Smoke.csproj" />
+</Solution>

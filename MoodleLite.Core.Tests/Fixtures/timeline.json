@@ -1,0 +1,51 @@
+{
+  "courses": [
+    {
+      "id": 474497,
+      "fullname": "Name 2",
+      "shortname": "Course short 1",
+      "idnumber": "",
+      "summary": "",
+      "summaryformat": 1,
+      "startdate": 1790805600,
+      "enddate": 1803769200,
+      "visible": true,
+      "showactivitydates": true,
+      "showcompletionconditions": null,
+      "pdfexportfont": "",
+      "fullnamedisplay": "Name 2",
+      "viewurl": "https://moodle.univie.ac.at/course/view.php?id=474497",
+      "courseimage": "https://moodle.example/placeholder",
+      "progress": 0,
+      "hasprogress": false,
+      "isfavourite": false,
+      "hidden": false,
+      "showshortname": false,
+      "coursecategory": "Category 1"
+    },
+    {
+      "id": 472156,
+      "fullname": "Name 3",
+      "shortname": "Course short 2",
+      "idnumber": "",
+      "summary": "",
+      "summaryformat": 1,
+      "startdate": 1790805600,
+      "enddate": 1803769200,
+      "visible": true,
+      "showactivitydates": true,
+      "showcompletionconditions": null,
+      "pdfexportfont": "",
+      "fullnamedisplay": "Name 3",
+      "viewurl": "https://moodle.univie.ac.at/course/view.php?id=472156",
+      "courseimage": "https://moodle.example/placeholder",
+      "progress": 0,
+      "hasprogress": false,
+      "isfavourite": false,
+      "hidden": false,
+      "showshortname": false,
+      "coursecategory": "Category 1"
+    }
+  ],
+  "nextoffset": 9
+}
