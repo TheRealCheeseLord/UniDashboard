@@ -11,6 +11,7 @@
             <NavigationViewItem Content="Assignments" Tag="assignments" Icon="List" />
             <NavigationViewItem Content="Calendar" Tag="calendar" Icon="Calendar" />
             <NavigationViewItem Content="Courses" Tag="courses" Icon="Library" />
+            <NavigationViewItem Content="Exam planner" Tag="planner" Icon="Calendar" />
             <NavigationViewItem Content="Settings" Tag="settings" Icon="Setting" />
         </NavigationView.MenuItems>
         <Frame x:Name="ContentFrame" />

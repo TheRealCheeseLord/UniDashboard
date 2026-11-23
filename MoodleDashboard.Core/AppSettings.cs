@@ -1,3 +1,6 @@
+using System.Text.Json;
+using MoodleDashboard.Core.Planning;
+
 namespace MoodleDashboard.Core;
 
 /// <summary>Typed view over the settings table.</summary>
@@ -25,6 +28,28 @@ public class AppSettings(Database db)
     /// <summary>Hash of credentials the IdP rejected; headless login is not retried with them (avoids account lockout).</summary>
     public string RejectedCredentialHash { get => Get("rejected_cred_hash", ""); set => Set("rejected_cred_hash", value); }
     public bool ShowDemoEvents { get => GetBool("show_demo_events", false); set => SetBool("show_demo_events", value); }
+    // Exam planner (persisted as JSON)
+    public PlanStrategy PlannerStrategy
+    {
+        get => Enum.TryParse<PlanStrategy>(db.GetSetting("planner_strategy"), out var v) ? v : PlanStrategy.Spread;
+        set => Set("planner_strategy", value.ToString());
+    }
+    public HashSet<string> PlannerExcluded
+    {
+        get => ReadJson<HashSet<string>>("planner_excluded") ?? [];
+        set => Set("planner_excluded", JsonSerializer.Serialize(value));
+    }
+    public Dictionary<string, string> PlannerPins
+    {
+        get => ReadJson<Dictionary<string, string>>("planner_pins") ?? new();
+        set => Set("planner_pins", JsonSerializer.Serialize(value));
+    }
+    T? ReadJson<T>(string key)
+    {
+        try { return db.GetSetting(key) is { Length: > 0 } s ? JsonSerializer.Deserialize<T>(s) : default; }
+        catch (JsonException) { return default; }
+    }
+
     public bool ShowExams { get => GetBool("show_exams", true); set => SetBool("show_exams", value); }
     public bool ShowMovedRemoved { get => GetBool("show_moved_removed", true); set => SetBool("show_moved_removed", value); }
     public bool NotifyCourse(string kind) => GetBool("notify_" + kind, Univie.CourseKinds.All.First(k => k.Kind == kind).Default);

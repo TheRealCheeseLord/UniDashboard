@@ -16,15 +16,17 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = false;
         AppWindow.Resize(new(1180, 780));   // size used when un-maximised
         if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p) p.Maximize();
-        Nav.SelectedItem = Nav.MenuItems[0];
+        Nav.SelectedItem = NavItem("assignments");
     }
+
+    NavigationViewItem NavItem(string tag) => Nav.MenuItems.OfType<NavigationViewItem>().First(i => (string?)i.Tag == tag);
 
     public IntPtr Hwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
     void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), _ => typeof(AssignmentsPage) };
+        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), "planner" => typeof(PlannerPage), _ => typeof(AssignmentsPage) };
         object? param = tag switch { "assignments" => _pendingAssignment, "courses" => _pendingCourse, _ => null };
         if (tag == "courses") _pendingCourse = null;
         ContentFrame.Navigate(page, param);
@@ -39,15 +41,15 @@ public sealed partial class MainWindow : Window
             {
                 _pendingAssignment = id;
                 if (ContentFrame.Content is AssignmentsPage page) page.ShowAssignment(id);
-                else if (Nav.SelectedItem == Nav.MenuItems[0]) ContentFrame.Navigate(typeof(AssignmentsPage), id);
-                else Nav.SelectedItem = Nav.MenuItems[0];
+                else if (Nav.SelectedItem == NavItem("assignments")) ContentFrame.Navigate(typeof(AssignmentsPage), id);
+                else Nav.SelectedItem = NavItem("assignments");
             }
             else if (part.StartsWith("--course="))
             {
                 _pendingCourse = part["--course=".Length..];
                 if (ContentFrame.Content is CoursesPage cp) { cp.ShowCourse(_pendingCourse); _pendingCourse = null; }
-                else if (Nav.SelectedItem == Nav.MenuItems[2]) ContentFrame.Navigate(typeof(CoursesPage), _pendingCourse);
-                else Nav.SelectedItem = Nav.MenuItems[2];
+                else if (Nav.SelectedItem == NavItem("courses")) ContentFrame.Navigate(typeof(CoursesPage), _pendingCourse);
+                else Nav.SelectedItem = NavItem("courses");
             }
             else if (part == "--calendar" || part.StartsWith("--calendar="))
             {
@@ -55,11 +57,12 @@ public sealed partial class MainWindow : Window
                 if (arg is not null && arg.Contains('@') && DateOnly.TryParse(arg[(arg.IndexOf('@') + 1)..], out var anchor))
                 { CalendarPage.RequestedDate = anchor; arg = arg[..arg.IndexOf('@')]; }
                 CalendarPage.RequestedView = arg;
-                Nav.SelectedItem = Nav.MenuItems[1];
+                Nav.SelectedItem = NavItem("calendar");
             }
+            else if (part == "--planner") Nav.SelectedItem = NavItem("planner");
             else if (part == "--login")
             {
-                Nav.SelectedItem = Nav.MenuItems[3];
+                Nav.SelectedItem = NavItem("settings");
                 _pendingLogin = true;
             }
         }

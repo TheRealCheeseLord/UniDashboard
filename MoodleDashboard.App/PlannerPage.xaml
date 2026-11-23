@@ -1,0 +1,49 @@
+<Page
+    x:Class="MoodleDashboard.App.PlannerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="24,16,24,10" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="6">
+            <TextBlock Text="Exam planner" Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="Recommendation only — nothing is registered for you. Register for the dates you choose in u:space. The plan avoids clashes with your lectures and with each other and never suggests a date whose registration has closed." />
+            <Grid ColumnSpacing="16" Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <RadioButtons x:Name="StrategyButtons" MaxColumns="3" SelectionChanged="Strategy_SelectionChanged">
+                    <RadioButton Content="As soon as possible" Tag="Earliest" ToolTipService.ToolTip="Earliest date of every course" />
+                    <RadioButton Content="As late as possible" Tag="Latest" ToolTipService.ToolTip="Latest date of every course: the most time to study" />
+                    <RadioButton Content="As spaced out as possible" Tag="Spread" ToolTipService.ToolTip="Maximise the days between your exams" />
+                </RadioButtons>
+                <TextBlock x:Name="StrategyHint" Grid.Column="1" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="ResetButton" Content="Reset pins" Click="ResetButton_Click" />
+                    <Button x:Name="CalendarButton" Content="Show in calendar" Click="CalendarButton_Click" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <Border Grid.Row="1" x:Name="SummaryCard" Padding="14,10" CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Your plan" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock x:Name="TimelineText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                <TextBlock x:Name="StatsText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel x:Name="CoursePanel" Spacing="8" Padding="0,0,12,16" />
+        </ScrollViewer>
+    </Grid>
+</Page>
