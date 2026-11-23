@@ -1,12 +1,15 @@
+using MoodleDashboard.Core.Univie;
+
 namespace MoodleDashboard.Core.Calendar;
 
-public enum MetaKind { Assignment, Event }
+public enum MetaKind { Assignment, Event, ExamWindow, Exam }
 
 /// <summary>One chip in the sticky meta row. Spans StartDay..EndDay (inclusive) so ranges need no new rendering code.</summary>
 public record MetaItem(
     MetaKind Kind, string Title, DateOnly StartDay, DateOnly EndDay,
     long AssignmentId = 0, Assignment? Assignment = null, CalendarEvent? Event = null,
-    bool Submitted = false, bool Overdue = false);
+    bool Submitted = false, bool Overdue = false,
+    ExamRecord? Exam = null, string? CourseTitle = null, bool Registered = false, string State = "");
 
 /// <summary>A meta item placed on the visible columns: 0-based column, column span and lane (row).</summary>
 public record MetaPlacement(MetaItem Item, int Col, int Span, int Lane);
@@ -33,7 +36,8 @@ public static class CalendarModel
 
     /// <summary>Items visible in [first, first+dayCount) laid out in lanes (greedy, longest spans first).</summary>
     public static List<MetaPlacement> BuildMetaRow(
-        DateOnly first, int dayCount, IEnumerable<Assignment> assignments, IEnumerable<CalendarEvent> events, DateTimeOffset now)
+        DateOnly first, int dayCount, IEnumerable<Assignment> assignments, IEnumerable<CalendarEvent> events, DateTimeOffset now,
+        IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)>? exams = null)
     {
         var last = first.AddDays(dayCount - 1);
         var items = new List<MetaItem>();
@@ -53,6 +57,8 @@ public static class CalendarModel
             items.Add(new(MetaKind.Event, e.Title, s, l, 0, null, e));
         }
 
+        AddExamItems(items, first, last, exams, now);
+
         var ordered = items
             .OrderByDescending(i => i.EndDay.DayNumber - i.StartDay.DayNumber)
             .ThenBy(i => i.StartDay).ThenBy(i => i.Kind).ThenBy(i => i.Title, StringComparer.CurrentCultureIgnoreCase)
@@ -69,6 +75,44 @@ public static class CalendarModel
             placed.Add(new(i, c0, c1 - c0 + 1, lane));
         }
         return placed.OrderBy(p => p.Lane).ThenBy(p => p.Col).ToList();
+    }
+
+    /// <summary>
+    /// Exam dates become chips on their day (registered exams with a known time live in the time grid instead);
+    /// a published registration window becomes a range bar over its days.
+    /// </summary>
+    static void AddExamItems(List<MetaItem> items, DateOnly first, DateOnly last,
+        IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)>? exams, DateTimeOffset now)
+    {
+        if (exams is null) return;
+        var list = exams.ToList();
+        var registeredCourses = list.Where(x => x.Exam.Registered && x.Exam.Status == ExamStatus.Active).Select(x => x.Enrolment.Key).ToHashSet();
+
+        foreach (var (x, e) in list)
+        {
+            var removed = x.Status == ExamStatus.Removed;
+            var recent = x.Begin > now.AddDays(-7);
+            var state = removed ? "removed" : x.Change == ExamChange.Changed && recent ? "changed" : "";
+
+            if (!(x.Registered && x.TimeKnown && !removed))
+            {
+                var d = DayOf(x.Begin);
+                if (d >= first && d <= last)
+                    items.Add(new(MetaKind.Exam,
+                        (x.Registered ? "✅ " : "") + "Exam: " + e.Title + (x.TimeKnown ? " " + x.Begin.ToLocalTime().ToString("HH:mm") : ""),
+                        d, d, Exam: x, CourseTitle: e.Title, Registered: x.Registered, State: state));
+            }
+
+            // Registration bar: only when published, not for past/removed exam dates.
+            if (x.HasWindow && !removed && x.Begin > now.AddDays(-1))
+            {
+                var s = DayOf(x.EnrollFrom!.Value);
+                var l = DayOf(x.EnrollTo!.Value);
+                if (l >= first && s <= last)
+                    items.Add(new(MetaKind.ExamWindow, $"Register: {e.Title} (exam {DayOf(x.Begin):d.M.})", s, l,
+                        Exam: x, CourseTitle: e.Title, Registered: registeredCourses.Contains(e.Key), State: state));
+            }
+        }
     }
 
     /// <summary>Timed (single-day) events of one day with side-by-side column packing for overlaps.</summary>

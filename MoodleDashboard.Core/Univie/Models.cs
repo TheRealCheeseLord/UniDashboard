@@ -63,6 +63,9 @@ public static class CourseKinds
     public const string SessionRemoved = "SessionRemoved";
     public const string SessionAdded = "SessionAdded";
     public const string Info = "CourseInfo";
+    public const string ExamChanged = "ExamChanged";
+    public const string ExamRegOpens = "ExamRegOpens";
+    public const string ExamRegClosing = "ExamRegClosing";
 
     public static readonly (string Kind, string Label, bool Default)[] All =
     [
@@ -73,5 +76,8 @@ public static class CourseKinds
         (SessionRemoved, "Session cancelled / removed", true),
         (SessionAdded, "Session added", true),
         (Info, "Course information changed (lecturers, literature…)", false),
+        (ExamChanged, "Exam dates: new / changed / removed", true),
+        (ExamRegOpens, "Exam registration opens", true),
+        (ExamRegClosing, "Exam registration closes soon (not registered yet)", true),
     ];
 }

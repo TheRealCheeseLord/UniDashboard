@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using MoodleDashboard.Core;
 using MoodleDashboard.Core.Calendar;
+using MoodleDashboard.Core.Docx;
 using MoodleDashboard.Core.Univie;
 
 namespace MoodleDashboard.App;
@@ -17,10 +18,11 @@ public sealed partial class CalendarPage : Page
     static App A => App.Current;
     static readonly CultureInfo Culture = CultureInfo.GetCultureInfo("de-AT");
     const double GutterW = 56, HourH = 48;
-    const int MaxLanes = 3;
+    const int MaxLanes = 4;
 
     /// <summary>Optional view requested via "--calendar=day|week|month".</summary>
     public static string? RequestedView { get; set; }
+    public static DateOnly? RequestedDate { get; set; }
 
     DateOnly _anchor = DateOnly.FromDateTime(DateTime.Today);
     View _view = View.Week;
@@ -39,8 +41,10 @@ public sealed partial class CalendarPage : Page
         Loaded += (_, _) =>
         {
             _ready = true;
+            ExamsToggle.IsChecked = A.Settings.ShowExams;
             if (RequestedView is { } rv && Enum.TryParse<View>(rv, true, out var v)) { _view = v; ViewBox.SelectedIndex = (int)v; }
             RequestedView = null;
+            if (RequestedDate is { } rd) { _anchor = rd; RequestedDate = null; }
             Render();
             _tick.Start();
         };
@@ -62,6 +66,20 @@ public sealed partial class CalendarPage : Page
         return s == l ? $"{DayLong(s)}, {Time(e.Start)} – {Time(e.End)}"
                       : $"{e.Start.ToLocalTime():d. MMM HH:mm} – {e.End.ToLocalTime():d. MMM HH:mm}";
     }
+
+    /// <summary>Possible exam dates + registration windows of enrolled courses (honours the Exams toggle).</summary>
+    List<(ExamRecord Exam, EnrolmentRecord Enrolment)> LoadExams(DateOnly first, int days)
+    {
+        if (!A.Settings.ShowExams) return [];
+        var list = A.Db.GetExamsBetween(StartOf(first), StartOf(first.AddDays(days)));
+        return A.Settings.ShowMovedRemoved ? list : list.Where(x => x.Exam.Status != ExamStatus.Removed).ToList();
+    }
+
+    /// <summary>A registered exam with a known time is a normal block in the time grid.</summary>
+    static IEnumerable<CalendarEvent> RegisteredExamEvents(IEnumerable<(ExamRecord Exam, EnrolmentRecord Enrolment)> exams) =>
+        exams.Where(x => x.Exam.Registered && x.Exam.TimeKnown && x.Exam.Status == ExamStatus.Active)
+            .Select(x => new CalendarEvent($"exam:{x.Exam.Key}", "Exam: " + x.Enrolment.Title, x.Exam.Begin, x.Exam.End, false, x.Exam.Room,
+                x.Exam.When, x.Enrolment.MoodleUrl, "exam", x.Enrolment.Title, "active", "You are registered for this exam"));
 
     List<CalendarEvent> LoadEvents(DateOnly first, int days)
     {
@@ -129,6 +147,12 @@ public sealed partial class CalendarPage : Page
         Render();
     }
 
+    void ExamsToggle_Click(object s, RoutedEventArgs e)
+    {
+        A.Settings.ShowExams = ExamsToggle.IsChecked == true;
+        Render();
+    }
+
     void ViewBox_SelectionChanged(object s, SelectionChangedEventArgs e)
     {
         _view = (View)Math.Max(0, ViewBox.SelectedIndex);
@@ -171,7 +195,9 @@ public sealed partial class CalendarPage : Page
 
         var now = DateTimeOffset.Now;
         var events = LoadEvents(first, n);
-        var meta = CalendarModel.BuildMetaRow(first, n, A.Db.GetAssignments(), events, now);
+        var exams = LoadExams(first, n);
+        events.AddRange(RegisteredExamEvents(exams));
+        var meta = CalendarModel.BuildMetaRow(first, n, A.Db.GetAssignments(), events, now, exams);
 
         Body.RowDefinitions.Add(new() { Height = GridLength.Auto });   // day header (sticky)
         Body.RowDefinitions.Add(new() { Height = GridLength.Auto });   // meta row (sticky)
@@ -305,6 +331,17 @@ public sealed partial class CalendarPage : Page
                 : item.Overdue ? (Res("SystemFillColorCriticalBackgroundBrush"), Res("TextFillColorPrimaryBrush"))
                 : (Res("SystemFillColorCautionBackgroundBrush"), Res("TextFillColorPrimaryBrush"));
         }
+        else if (item.Kind is MetaKind.Exam or MetaKind.ExamWindow)
+        {
+            text = (item.State == "changed" ? "✎ " : "") + item.Title;
+            var removed = item.State == "removed";
+            (bg, fg) = removed ? (Res("SubtleFillColorSecondaryBrush"), Res("TextFillColorSecondaryBrush"))
+                : item.Kind == MetaKind.ExamWindow
+                    ? (item.Registered ? Res("SubtleFillColorSecondaryBrush") : Res("SystemFillColorSuccessBackgroundBrush"),
+                       item.Registered ? Res("TextFillColorSecondaryBrush") : Res("TextFillColorPrimaryBrush"))
+                    : item.Registered ? (Res("AccentFillColorDefaultBrush"), Res("TextOnAccentFillColorPrimaryBrush"))
+                    : (Res("SystemFillColorAttentionBackgroundBrush"), Res("TextFillColorPrimaryBrush"));
+        }
         else
         {
             text = item.Title;
@@ -312,7 +349,11 @@ public sealed partial class CalendarPage : Page
         }
         var b = new Button
         {
-            Content = new TextBlock { Text = text, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg },
+            Content = new TextBlock
+            {
+                Text = text, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg,
+                TextDecorations = item.State == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
+            },
             Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(2, 1, 2, 1), MinHeight = 22,
             HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left,
             Background = bg, BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(4),
@@ -421,6 +462,8 @@ public sealed partial class CalendarPage : Page
 
         var now = DateTimeOffset.Now;
         var events = LoadEvents(gridStart, 42);
+        var exams = LoadExams(gridStart, 42);
+        events.AddRange(RegisteredExamEvents(exams));
         var assignments = A.Db.GetAssignments();
         var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -444,10 +487,16 @@ public sealed partial class CalendarPage : Page
         {
             var day = gridStart.AddDays(i);
             var items = new List<MetaItem>();
-            items.AddRange(CalendarModel.BuildMetaRow(day, 1, assignments, events, now).Select(p => p.Item));
+            // Month cells are small: registration windows only appear on their first and last day (not on every day in between),
+            // and rank below exam dates and deadlines.
+            var metaItems = CalendarModel.BuildMetaRow(day, 1, assignments, events, now, exams).Select(p => p.Item).ToList();
+            foreach (var it in metaItems.Where(i => i.Kind != MetaKind.ExamWindow)) items.Add(it);
+            var windowChips = metaItems.Where(i => i.Kind == MetaKind.ExamWindow && (i.StartDay == day || i.EndDay == day))
+                .Select(w => w with { Title = (w.StartDay == day ? "Registration opens: " : "Registration closes: ") + w.CourseTitle }).ToList();
             var timed = events.Where(e => !CalendarModel.IsMeta(e) && CalendarModel.DayOf(e.Start) == day).OrderBy(e => e.Start)
                 .Select(e => new MetaItem(MetaKind.Event, $"{Time(e.Start)} {e.Title}", day, day, 0, null, e)).ToList();
             items.AddRange(timed);
+            items.AddRange(windowChips);
 
             var stack = new StackPanel { Spacing = 0 };
             var numBtn = new Border
@@ -522,6 +571,33 @@ public sealed partial class CalendarPage : Page
             var open = new Button { Content = "Open assignment", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
             open.Click += (_, _) => { fly.Hide(); A.Window?.HandleCommandLine("--assignment=" + a.Id); };
             sp.Children.Add(open);
+        }
+        else if (item.Exam is { } x)
+        {
+            var de = Culture;
+            string Dt(DateTimeOffset d) => d.ToLocalTime().ToString("ddd d. MMM yyyy, HH:mm", de);
+            var now = DateTimeOffset.Now;
+            sp.Children.Add(T("Exam: " + (item.CourseTitle ?? x.Title), bold: true));
+            sp.Children.Add(T(x.TimeKnown ? $"{x.Begin.ToLocalTime().ToString("dddd, d. MMMM yyyy", de)}, {Time(x.Begin)} – {Time(x.End)}"
+                                          : $"{x.Begin.ToLocalTime().ToString("dddd, d. MMMM yyyy", de)} (time not published yet)"));
+            if (x.Registered) sp.Children.Add(T("✅ You are registered for this date", bold: true));
+            if (x.Status == ExamStatus.Removed) sp.Children.Add(T("⚠ This exam date was removed", bold: true));
+            else if (x.Change == ExamChange.Changed)
+                sp.Children.Add(T("⚠ Changed" + (x.PrevBegin is { } pb && pb != x.Begin ? $" — was {Dt(pb)}" : "") +
+                    (x.PrevEnrollTo is { } pt && pt != x.EnrollTo ? $", registration end was {Dt(pt)}" : ""), bold: true));
+            if (x.HasWindow)
+            {
+                var state = now < x.EnrollFrom ? $"opens in {AssignmentsPage.RelativeDue(x.EnrollFrom, now).Replace("in ", "")}"
+                    : now <= x.EnrollTo ? $"open — closes {AssignmentsPage.RelativeDue(x.EnrollTo, now)}" : "closed";
+                sp.Children.Add(T($"Registration: {Dt(x.EnrollFrom!.Value)} – {Dt(x.EnrollTo!.Value)}  ({state})"));
+                if (x.DisenrollUntil is { } du) sp.Children.Add(T("Deregistration until " + Dt(du), secondary: true));
+            }
+            else sp.Children.Add(T("Registration window not published yet", secondary: true));
+            if (!string.IsNullOrWhiteSpace(x.Room)) sp.Children.Add(T("📍 " + x.Room));
+            if (!string.IsNullOrWhiteSpace(x.When)) sp.Children.Add(T(DocxGenerator.HtmlToPlainText(x.When!), secondary: true));
+            var toCourse = new Button { Content = "Open course" };
+            toCourse.Click += (_, _) => { fly.Hide(); A.Window?.HandleCommandLine("--course=" + x.EnrolmentKey); };
+            sp.Children.Add(toCourse);
         }
         else if (item.Event is { } e)
         {

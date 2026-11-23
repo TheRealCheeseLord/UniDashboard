@@ -25,6 +25,7 @@ public class AppSettings(Database db)
     /// <summary>Hash of credentials the IdP rejected; headless login is not retried with them (avoids account lockout).</summary>
     public string RejectedCredentialHash { get => Get("rejected_cred_hash", ""); set => Set("rejected_cred_hash", value); }
     public bool ShowDemoEvents { get => GetBool("show_demo_events", false); set => SetBool("show_demo_events", value); }
+    public bool ShowExams { get => GetBool("show_exams", true); set => SetBool("show_exams", value); }
     public bool ShowMovedRemoved { get => GetBool("show_moved_removed", true); set => SetBool("show_moved_removed", value); }
     public bool NotifyCourse(string kind) => GetBool("notify_" + kind, Univie.CourseKinds.All.First(k => k.Kind == kind).Default);
     public void SetNotifyCourse(string kind, bool v) => SetBool("notify_" + kind, v);

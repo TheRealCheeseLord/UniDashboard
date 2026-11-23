@@ -3,12 +3,21 @@ using System.Xml.Linq;
 
 namespace MoodleDashboard.Core.Ufind;
 
+/// <summary>One possible exam date of a course (u:find <c>group/exams/exam</c>); <c>ExtId</c> is stable across changes.</summary>
+public record UfindExam(
+    string ExtId, string Id, DateTimeOffset Begin, DateTimeOffset End, string TitleDe, string TitleEn, string? When,
+    List<string> Examiners, DateTimeOffset? EnrollFrom, DateTimeOffset? EnrollTo, DateTimeOffset? DisenrollUntil)
+{
+    /// <summary>Date-only exams are published as begin == end (T00:00 – T00:00): the time is not known yet.</summary>
+    public bool TimeKnown => End > Begin;
+}
+
 public record UfindGroup(
     string GroupId, string? RegisterId, string? MoodleUrl, int MaxParticipants, bool Livestream,
     DateTimeOffset? EnrollFrom, DateTimeOffset? EnrollTo, DateTimeOffset? DisenrollUntil,
     Dictionary<string, string> Comment, Dictionary<string, string> Performance, Dictionary<string, string> Literature,
     Dictionary<string, string> Examination, Dictionary<string, string> Preconditions,
-    List<string> Lecturers, List<string> Languages);
+    List<string> Lecturers, List<string> Languages, List<UfindExam>? Exams = null);
 
 /// <summary>Static course information from u:find. Serialised as JSON into the DB and diffed for changes.</summary>
 public record UfindCourse(
@@ -108,13 +117,36 @@ public class UfindClient(HttpClient http) : ICourseInfoSource
                 Info("comment"), Info("performance"), Info("literature"), Info("examination"), Info("preconditions"),
                 (g.Element("lecturers")?.Elements("lecturer") ?? [])
                     .Select(l => $"{l.Element("firstname")?.Value} {l.Element("lastname")?.Value}".Trim()).Where(s => s.Length > 0).ToList(),
-                (g.Element("languages")?.Elements("language") ?? []).Select(l => l.Value.Trim()).Where(s => s.Length > 0).ToList()));
+                (g.Element("languages")?.Elements("language") ?? []).Select(l => l.Value.Trim()).Where(s => s.Length > 0).ToList(),
+                ParseExams(g)));
         }
 
         return new((string?)c.Attribute("id") ?? "", (string?)c.Attribute("when") ?? "", (string?)c.Attribute("version") ?? "",
             Lang("longname", "de"), Lang("longname", "en"), type?.Value ?? "", (string?)type?.Attribute("desc") ?? "",
             Dec(c.Element("ects")?.Value), Dec(c.Element("sws")?.Value), c.Element("immanent")?.Value == "true",
             c.Element("offeredby")?.Value.Trim(), curricula, groups);
+    }
+
+    static List<UfindExam> ParseExams(XElement group)
+    {
+        var list = new List<UfindExam>();
+        foreach (var e in group.Element("exams")?.Elements("exam") ?? [])
+        {
+            var begin = Dt((string?)e.Attribute("begin"));
+            if (begin is null) continue;
+            var end = Dt((string?)e.Attribute("end")) ?? begin.Value;
+            var id = (string?)e.Attribute("id") ?? "";
+            var ext = (string?)e.Attribute("extid") is { Length: > 0 } x ? x : id;
+            if (ext.Length == 0) continue;
+            var reg = e.Element("registrations");     // may be empty: window not published yet
+            string Title(string lang) => e.Elements("title").FirstOrDefault(t => (string?)t.Attribute(Xml + "lang") == lang)?.Value.Trim() ?? "";
+            list.Add(new(ext, id, begin.Value, end, Title("de"), Title("en"),
+                e.Elements("when").FirstOrDefault(w => (string?)w.Attribute(Xml + "lang") == "de")?.Value.Trim() is { Length: > 0 } wh ? wh : null,
+                (e.Element("examiners")?.Elements("examiner") ?? []).Select(x => (string?)x.Attribute("id") ?? "").Where(s => s.Length > 0).ToList(),
+                Dt((string?)reg?.Element("enroll")?.Attribute("from")), Dt((string?)reg?.Element("enroll")?.Attribute("to")),
+                Dt((string?)reg?.Element("disenroll")?.Attribute("until"))));
+        }
+        return list.OrderBy(x => x.Begin).ToList();
     }
 
     static DateTimeOffset? Dt(string? s) =>

@@ -18,8 +18,10 @@ public record UnivieSyncResult(int Enrolments, int Changed, int Notified, string
 public class UnivieSyncService(
     Database db, AppSettings settings, IEnrolmentSource uspace, ICourseInfoSource ufind, INotifier? notifier, bool headless, Action<string>? log = null)
 {
-    public static readonly TimeSpan UfindRefresh = TimeSpan.FromHours(6);
+    /// <summary>How long fetched u:find data is considered fresh.</summary>
+    public TimeSpan UfindRefresh { get; init; } = TimeSpan.FromHours(6);
     static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-AT");
+    IReadOnlyList<ExamRegistrationDto> _regs = [];
 
     public async Task<UnivieSyncResult> RunAsync(CancellationToken ct = default)
     {
@@ -29,6 +31,15 @@ public class UnivieSyncService(
         catch (LoginRequiredException e) { log?.Invoke("u:space login required: " + e.Message); return new(0, 0, 0, e.Message, true); }
         catch (Exception e) when (e is HttpRequestException or Microsoft.Playwright.PlaywrightException or JsonException or TaskCanceledException && !ct.IsCancellationRequested)
         { log?.Invoke("u:space failed: " + e.Message); return new(0, 0, 0, e.Message); }
+
+        _regs = uspace.LastExamRegistrations;
+        foreach (var reg in _regs)
+        {
+            // Unknown JSON shape until the user has registered for an exam: remember each distinct shape once and log it.
+            using var d = JsonDocument.Parse(reg.RawJson);
+            var shape = UspaceClient.ShapeOf(d.RootElement);
+            if (db.RememberExamShape(shape, reg.RawJson, now)) log?.Invoke("u:space exam registration shape: " + shape);
+        }
 
         var initial = db.GetEnrolments(activeOnly: false).Count == 0;
         int changed = 0, notified = 0;
@@ -47,6 +58,8 @@ public class UnivieSyncService(
             }
         }
 
+        notified += SendExamReminders(now);
+
         // Enrolments u:space no longer lists. Guard: an empty list may be an API hiccup.
         if (fresh.Count > 0)
         {
@@ -54,7 +67,7 @@ public class UnivieSyncService(
             foreach (var gone in db.GetEnrolments().Where(e => !seen.Contains(e.Key)))
             {
                 gone.Active = false; gone.UnseenChange = true; gone.LastSeenAt = now;
-                db.SaveEnrolment(gone, null, Snapshot(gone, db.GetSessions(gone.Key)), "NoLongerEnrolled");
+                db.SaveEnrolment(gone, null, Snapshot(gone, db.GetSessions(gone.Key), db.GetExams(gone.Key)), "NoLongerEnrolled");
                 changed++;
                 if (settings.NotifyCourse(CourseKinds.Status))
                     notified += Send(new(Id(gone.Key), CourseKinds.Status, "gone", gone.Title, $"No longer enrolled in {gone.Title}", gone.Key), now);
@@ -76,7 +89,7 @@ public class UnivieSyncService(
         };
 
         // u:find: only when stale; keep the old data if the fetch fails or the course version is unchanged.
-        if (old?.UfindFetchedAt is not { } at || now - at > UfindRefresh || string.IsNullOrEmpty(old.UfindJson))
+        if (old?.UfindFetchedAt is not { } at || now - at > UfindRefresh || string.IsNullOrEmpty(old.UfindJson) || !old.UfindJson.Contains("\"Exams\""))
         {
             try
             {
@@ -84,7 +97,7 @@ public class UnivieSyncService(
                 if (course is not null)
                 {
                     rec.UfindFetchedAt = now;
-                    if (course.Version != old?.UfindVersion || string.IsNullOrEmpty(old?.UfindJson))
+                    if (course.Version != old?.UfindVersion || string.IsNullOrEmpty(old?.UfindJson) || !old.UfindJson.Contains("\"Exams\""))
                     {
                         rec.UfindVersion = course.Version;
                         rec.UfindJson = JsonSerializer.Serialize(course);
@@ -98,20 +111,39 @@ public class UnivieSyncService(
         var oldSessions = db.GetSessions(dto.Key);
         var (sessions, events) = SessionDiffer.Diff(oldSessions, dto.Key, dto.Sessions, now, first: old is null);
 
-        var infoChanged = old is not null && old.ContentHash != rec.ContentHash;
+        // Exams: possible dates + registration windows from u:find, "registered" from u:space. Identity = u:find extid.
+        var examMarker = $"exams_synced_{dto.Key}";
+        var firstExams = old is null || db.GetSetting(examMarker) is null;
+        var oldExams = db.GetExams(dto.Key);
+        var (exams, examEvents) = ExamDiffer.Diff(oldExams, BuildExams(rec, _regs), now, firstExams);
+        var regChanged = !oldExams.Where(e => e.Registered).Select(e => e.Key).OrderBy(k => k)
+            .SequenceEqual(exams.Where(e => e.Registered).Select(e => e.Key).OrderBy(k => k));
+        var saveExams = firstExams || examEvents.Count > 0 || regChanged;
+
+        // Rows stored before exams were parsed gain an "Exams" block once: that is a migration, not a change.
+        var migrating = old is not null && old.UfindJson.Length > 0 && !old.UfindJson.Contains("\"Exams\"");
+        var infoChanged = old is not null && !migrating && old.ContentHash != rec.ContentHash;
         var statusChanged = old is not null && (old.Status != rec.Status || old.WaitlistPosition != rec.WaitlistPosition || !old.Active);
-        var anyChange = old is null || infoChanged || events.Count > 0;
+        var anyChange = old is null || infoChanged || events.Count > 0 || examEvents.Count > 0 || regChanged;
 
-        rec.UnseenChange = (old?.UnseenChange ?? false) || (old is not null && (infoChanged || events.Count > 0));
+        rec.UnseenChange = (old?.UnseenChange ?? false) || (old is not null && (infoChanged || events.Count > 0 || examEvents.Count > 0));
 
-        if (!anyChange) { db.SaveEnrolment(rec, null, null, null); return (0, 0); }
+        if (!anyChange)
+        {
+            db.SaveEnrolment(rec, null, null, null, saveExams ? exams : null);
+            if (saveExams) db.SetSetting(examMarker, "1");
+            return (0, 0);
+        }
 
         var kinds = new List<string>();
         if (old is null) kinds.Add("New");
         if (statusChanged) kinds.Add("Status");
         if (infoChanged && !statusChanged) kinds.Add("Info");
         kinds.AddRange(events.GroupBy(e => e.Change).Select(g => $"{g.Key}×{g.Count()}"));
-        db.SaveEnrolment(rec, sessions, Snapshot(rec, sessions), string.Join(", ", kinds));
+        kinds.AddRange(examEvents.GroupBy(e => e.Change).Select(g => $"Exam{g.Key}×{g.Count()}"));
+        if (regChanged) kinds.Add("ExamRegistration");
+        db.SaveEnrolment(rec, sessions, Snapshot(rec, sessions, exams), string.Join(", ", kinds), saveExams ? exams : null);
+        if (saveExams) db.SetSetting(examMarker, "1");
 
         var sent = 0;
         if (!initial)
@@ -124,8 +156,68 @@ public class UnivieSyncService(
             if (infoChanged && !statusChanged && settings.NotifyCourse(CourseKinds.Info))
                 sent += Send(new(Id(dto.Key), CourseKinds.Info, rec.ContentHash, rec.Title, "Course information updated", dto.Key), now);
             if (old is not null) sent += NotifySessions(rec, events, now);
+            if (!firstExams) sent += NotifyExams(rec, examEvents, now);
         }
         return (1, sent);
+    }
+
+    // ---------- exams
+
+    List<ExamRecord> BuildExams(EnrolmentRecord rec, IReadOnlyList<ExamRegistrationDto> regs)
+    {
+        var list = new List<ExamRecord>();
+        UfindCourse? uf = string.IsNullOrEmpty(rec.UfindJson) ? null : JsonSerializer.Deserialize<UfindCourse>(rec.UfindJson);
+        var g = uf?.Groups.FirstOrDefault(x => x.GroupId == $"{rec.LvNr}-{rec.GroupNr}") ?? uf?.Groups.FirstOrDefault();
+        var mine = regs.Where(r => r.LvNr == rec.LvNr && (r.Semester.Length == 0 || r.Semester == rec.Semester)
+                                   && !r.Status.Contains("ABGEMELDET", StringComparison.OrdinalIgnoreCase)).ToList();
+        var used = new HashSet<ExamRegistrationDto>();
+
+        foreach (var x in g?.Exams ?? [])
+        {
+            var reg = mine.FirstOrDefault(r => r.ExtId.Length > 0 && (r.ExtId == x.ExtId || r.ExtId == x.Id))
+                      ?? mine.FirstOrDefault(r => r.Begin is { } b && b.ToLocalTime().Date == x.Begin.ToLocalTime().Date && !used.Contains(r));
+            if (reg is not null) used.Add(reg);
+            list.Add(new()
+            {
+                Key = $"{rec.Key}|{x.ExtId}", EnrolmentKey = rec.Key, ExtId = x.ExtId, Title = x.TitleDe.Length > 0 ? x.TitleDe : rec.Title,
+                Begin = x.Begin, End = x.End, TimeKnown = x.TimeKnown, When = x.When, Room = reg?.Room,
+                EnrollFrom = x.EnrollFrom, EnrollTo = x.EnrollTo, DisenrollUntil = x.DisenrollUntil, Registered = reg is not null,
+            });
+        }
+        // Registered for a date u:find does not list (yet): still show it, from u:space data alone.
+        foreach (var reg in mine.Where(r => !used.Contains(r) && r.Begin is not null))
+        {
+            var b = reg.Begin!.Value;
+            list.Add(new()
+            {
+                Key = $"{rec.Key}|uspace:{(reg.ExtId.Length > 0 ? reg.ExtId : b.ToUnixTimeSeconds().ToString())}", EnrolmentKey = rec.Key,
+                ExtId = reg.ExtId, Title = rec.Title, Begin = b, End = reg.End ?? b, TimeKnown = reg.End > b, Room = reg.Room, Registered = true,
+            });
+        }
+        return list;
+    }
+
+    int NotifyExams(EnrolmentRecord rec, List<ExamEvent> events, DateTimeOffset now)
+    {
+        if (events.Count == 0 || !settings.NotifyCourse(CourseKinds.ExamChanged)) return 0;
+        var list = events.Where(e => e.Exam.Begin > now.AddDays(-1)).ToList();   // past exam dates are not worth a toast
+        if (list.Count == 0) return 0;
+        string D(ExamRecord x) => x.TimeKnown ? x.Begin.ToLocalTime().ToString("ddd d.M.yyyy HH:mm", De) : x.Begin.ToLocalTime().ToString("ddd d.M.yyyy", De);
+        var lines = list.Take(3).Select(e => e.Change switch
+        {
+            ExamChange.Added => $"New exam date {D(e.Exam)}",
+            ExamChange.Changed => e.Previous!.Begin != e.Exam.Begin ? $"Exam date changed: {D(e.Previous)} → {D(e.Exam)}" : $"Exam {D(e.Exam)}: registration window changed",
+            _ => $"Exam date removed: {D(e.Exam)}",
+        });
+        var body = string.Join("; ", lines) + (list.Count > 3 ? $" (+{list.Count - 3} more)" : "");
+        return Send(new(Id(rec.Key), CourseKinds.ExamChanged, Hash(string.Join("|", list.Select(e => e.Change + e.Exam.Key + e.Exam.Hash))), rec.Title, body, rec.Key), now);
+    }
+
+    int SendExamReminders(DateTimeOffset now)
+    {
+        var n = 0;
+        foreach (var p in NotificationRules.ExamReminders(db.GetAllExams(), settings, now)) n += Send(p, now);
+        return n;
     }
 
     int NotifySessions(EnrolmentRecord rec, List<SessionEvent> events, DateTimeOffset now)
@@ -182,11 +274,16 @@ public class UnivieSyncService(
     static string HashInfo(EnrolmentRecord r) =>
         Hash(string.Join("\u0001", r.Title, r.Type, r.Status, r.WaitlistPosition, r.LecturersJson, r.MoodleUrl, r.Remark, r.StudyName, r.UfindJson));
 
-    public static string Snapshot(EnrolmentRecord r, IEnumerable<SessionRecord> sessions) => JsonSerializer.Serialize(new
+    public static string Snapshot(EnrolmentRecord r, IEnumerable<SessionRecord> sessions, IEnumerable<ExamRecord>? exams = null) => JsonSerializer.Serialize(new
     {
         r.Title, r.Type, r.Status, r.Semester, r.WaitlistPosition, r.StudyName, r.MoodleUrl, r.Remark, r.Active,
         Lecturers = JsonSerializer.Deserialize<List<LecturerDto>>(r.LecturersJson) ?? [],
         Ufind = string.IsNullOrEmpty(r.UfindJson) ? null : JsonSerializer.Deserialize<UfindCourse>(r.UfindJson),
+        Exams = (exams ?? []).Select(x => new
+        {
+            Begin = x.Begin.ToUnixTimeSeconds(), End = x.End.ToUnixTimeSeconds(), x.TimeKnown, x.Registered, Status = x.Status.ToString(),
+            EnrollFrom = x.EnrollFrom?.ToUnixTimeSeconds(), EnrollTo = x.EnrollTo?.ToUnixTimeSeconds(), DisenrollUntil = x.DisenrollUntil?.ToUnixTimeSeconds(),
+        }),
         Sessions = sessions.Select(s => new
         {
             Begin = s.Begin.ToUnixTimeSeconds(), End = s.End.ToUnixTimeSeconds(), s.Room, Status = s.Status.ToString(), Change = s.Change.ToString(),

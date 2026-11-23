@@ -109,6 +109,7 @@ public sealed partial class CoursesPage : Page
 
         BuildInfo(g);
         BuildSessions();
+        BuildExams();
         HistoryExpander.IsExpanded = false;
         HistoryList.ItemsSource = null;
         DiffPanel.Children.Clear();
@@ -132,6 +133,39 @@ public sealed partial class CoursesPage : Page
         Section("Examination", g.Examination);
         Section("Preconditions", g.Preconditions);
         Section("Literature", g.Literature);
+    }
+
+    void BuildExams()
+    {
+        ExamsPanel.Children.Clear();
+        if (_current is null) return;
+        var now = DateTimeOffset.Now;
+        var exams = A.Db.GetExams(_current.Key).Where(x => x.Status == ExamStatus.Active || A.Settings.ShowMovedRemoved && x.Begin > now.AddDays(-7)).ToList();
+        if (exams.Count == 0) return;
+
+        ExamsPanel.Children.Add(new TextBlock { Text = "Exams", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], Margin = new Thickness(0, 8, 0, 0) });
+        string Dt(DateTimeOffset d) => d.ToLocalTime().ToString("ddd d.M. HH:mm", De);
+        foreach (var x in exams)
+        {
+            var when = x.TimeKnown ? x.Begin.ToLocalTime().ToString("ddd d. MMM yyyy  HH:mm", De) + "–" + x.End.ToLocalTime().ToString("HH:mm", De)
+                                   : x.Begin.ToLocalTime().ToString("ddd d. MMM yyyy", De) + "  (time not published yet)";
+            var reg = !x.HasWindow ? "registration window not published yet"
+                : now < x.EnrollFrom ? $"registration opens {Dt(x.EnrollFrom!.Value)} – {Dt(x.EnrollTo!.Value)}"
+                : now <= x.EnrollTo ? $"registration OPEN until {Dt(x.EnrollTo!.Value)}"
+                : $"registration closed ({Dt(x.EnrollTo!.Value)})";
+            var status = x.Status == ExamStatus.Removed ? "  — removed"
+                : x.Change == ExamChange.Changed ? "  — changed" + (x.PrevBegin is { } pb && pb != x.Begin ? $" (was {Dt(pb)})" : "") : "";
+            var tb = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true,
+                Text = (x.Registered ? "✅ " : "") + when + "\n    " + reg + (x.DisenrollUntil is { } du && x.HasWindow ? $" · deregister until {Dt(du)}" : "") +
+                       (string.IsNullOrWhiteSpace(x.When) ? "" : "\n    " + DocxGenerator.HtmlToPlainText(x.When!).Replace("\n", " ")) + status,
+                TextDecorations = x.Status == ExamStatus.Removed ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
+                Opacity = x.End < now ? 0.55 : x.Status == ExamStatus.Removed ? 0.7 : 1,
+                Foreground = x.Registered ? (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"] : (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"],
+            };
+            ExamsPanel.Children.Add(tb);
+        }
     }
 
     void PastSwitch_Toggled(object s, RoutedEventArgs e) { if (_current is not null) BuildSessions(); }

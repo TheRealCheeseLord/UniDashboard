@@ -51,7 +51,10 @@ public sealed partial class MainWindow : Window
             }
             else if (part == "--calendar" || part.StartsWith("--calendar="))
             {
-                CalendarPage.RequestedView = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
+                var arg = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
+                if (arg is not null && arg.Contains('@') && DateOnly.TryParse(arg[(arg.IndexOf('@') + 1)..], out var anchor))
+                { CalendarPage.RequestedDate = anchor; arg = arg[..arg.IndexOf('@')]; }
+                CalendarPage.RequestedView = arg;
                 Nav.SelectedItem = Nav.MenuItems[1];
             }
             else if (part == "--login")

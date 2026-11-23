@@ -30,6 +30,11 @@ public class Database
         CREATE TABLE IF NOT EXISTS univie_sessions(session_key TEXT PRIMARY KEY, enrolment_key TEXT, begin_at INTEGER, end_at INTEGER, room TEXT,
             hash TEXT, status INTEGER, change INTEGER, first_seen_at INTEGER, last_changed_at INTEGER, prev_begin INTEGER, prev_end INTEGER, prev_room TEXT);
         CREATE INDEX IF NOT EXISTS idx_univie_sessions_enr ON univie_sessions(enrolment_key);
+        CREATE TABLE IF NOT EXISTS exams(exam_key TEXT PRIMARY KEY, enrolment_key TEXT, ext_id TEXT, title TEXT, begin_at INTEGER, end_at INTEGER,
+            time_known INTEGER, when_text TEXT, room TEXT, enroll_from INTEGER, enroll_to INTEGER, disenroll_until INTEGER, registered INTEGER,
+            hash TEXT, status INTEGER, change INTEGER, first_seen_at INTEGER, last_changed_at INTEGER, prev_begin INTEGER, prev_enroll_from INTEGER, prev_enroll_to INTEGER);
+        CREATE INDEX IF NOT EXISTS idx_exams_enr ON exams(enrolment_key);
+        CREATE TABLE IF NOT EXISTS exam_registrations_raw(shape TEXT PRIMARY KEY, first_seen_at INTEGER, sample_json TEXT);
         CREATE TABLE IF NOT EXISTS enrolment_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT, enrolment_key TEXT, taken_at INTEGER, hash TEXT, json TEXT, change_kinds TEXT);
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, title TEXT, start_at INTEGER, end_at INTEGER, all_day INTEGER,
             location TEXT, description TEXT, url TEXT, source TEXT, course_name TEXT);
@@ -250,7 +255,7 @@ public class Database
     }
 
     /// <summary>Saves enrolment + its sessions (+ optional snapshot) in one short transaction.</summary>
-    public void SaveEnrolment(EnrolmentRecord e, IReadOnlyList<SessionRecord>? sessions, string? snapshotJson, string? changeKinds)
+    public void SaveEnrolment(EnrolmentRecord e, IReadOnlyList<SessionRecord>? sessions, string? snapshotJson, string? changeKinds, IReadOnlyList<ExamRecord>? exams = null)
     {
         using var c = Open();
         using var tx = c.BeginTransaction();
@@ -276,6 +281,21 @@ public class Database
                     ("$k", s.Key), ("$e", s.EnrolmentKey), ("$b", s.Begin.ToUnixTimeSeconds()), ("$en", s.End.ToUnixTimeSeconds()), ("$r", s.Room),
                     ("$h", s.Hash), ("$st", (int)s.Status), ("$ch", (int)s.Change), ("$fs", s.FirstSeenAt.ToUnixTimeSeconds()),
                     ("$lc", s.LastChangedAt.ToUnixTimeSeconds()), ("$pb", s.PrevBegin?.ToUnixTimeSeconds()), ("$pe", s.PrevEnd?.ToUnixTimeSeconds()), ("$pr", s.PrevRoom));
+        }
+        if (exams is not null)
+        {
+            Exec(c, "DELETE FROM exams WHERE enrolment_key=$k", ("$k", e.Key));
+            foreach (var x in exams)
+                Exec(c, """
+                    INSERT OR REPLACE INTO exams(exam_key,enrolment_key,ext_id,title,begin_at,end_at,time_known,when_text,room,enroll_from,enroll_to,disenroll_until,registered,
+                        hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_enroll_from,prev_enroll_to)
+                    VALUES($k,$e,$x,$t,$b,$en,$tk,$w,$r,$ef,$et,$du,$rg,$h,$st,$ch,$fs,$lc,$pb,$pf,$pt)
+                    """,
+                    ("$k", x.Key), ("$e", x.EnrolmentKey), ("$x", x.ExtId), ("$t", x.Title), ("$b", x.Begin.ToUnixTimeSeconds()), ("$en", x.End.ToUnixTimeSeconds()),
+                    ("$tk", x.TimeKnown ? 1 : 0), ("$w", x.When), ("$r", x.Room), ("$ef", x.EnrollFrom?.ToUnixTimeSeconds()), ("$et", x.EnrollTo?.ToUnixTimeSeconds()),
+                    ("$du", x.DisenrollUntil?.ToUnixTimeSeconds()), ("$rg", x.Registered ? 1 : 0), ("$h", x.Hash), ("$st", (int)x.Status), ("$ch", (int)x.Change),
+                    ("$fs", x.FirstSeenAt.ToUnixTimeSeconds()), ("$lc", x.LastChangedAt.ToUnixTimeSeconds()), ("$pb", x.PrevBegin?.ToUnixTimeSeconds()),
+                    ("$pf", x.PrevEnrollFrom?.ToUnixTimeSeconds()), ("$pt", x.PrevEnrollTo?.ToUnixTimeSeconds()));
         }
         if (snapshotJson is not null)
             Exec(c, "INSERT INTO enrolment_snapshots(enrolment_key,taken_at,hash,json,change_kinds) VALUES($k,$t,$h,$j,$ck)",
@@ -341,6 +361,72 @@ public class Database
             if (enr.TryGetValue(s.EnrolmentKey, out var e)) l.Add((s, e));
         }
         return l;
+    }
+
+    const string ExamCols = "exam_key,enrolment_key,ext_id,title,begin_at,end_at,time_known,when_text,room,enroll_from,enroll_to,disenroll_until,registered,hash,status,change,first_seen_at,last_changed_at,prev_begin,prev_enroll_from,prev_enroll_to";
+
+    static ExamRecord ReadExam(SqliteDataReader r)
+    {
+        DateTimeOffset? D(int i) => r.IsDBNull(i) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(i));
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        return new()
+        {
+            Key = r.GetString(0), EnrolmentKey = r.GetString(1), ExtId = S(2) ?? "", Title = S(3) ?? "", Begin = D(4)!.Value, End = D(5)!.Value,
+            TimeKnown = r.GetInt32(6) != 0, When = S(7), Room = S(8), EnrollFrom = D(9), EnrollTo = D(10), DisenrollUntil = D(11),
+            Registered = r.GetInt32(12) != 0, Hash = S(13) ?? "", Status = (ExamStatus)r.GetInt32(14), Change = (ExamChange)r.GetInt32(15),
+            FirstSeenAt = D(16)!.Value, LastChangedAt = D(17)!.Value, PrevBegin = D(18), PrevEnrollFrom = D(19), PrevEnrollTo = D(20),
+        };
+    }
+
+    public List<ExamRecord> GetExams(string enrolmentKey)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT {ExamCols} FROM exams WHERE enrolment_key=$k ORDER BY begin_at";
+        cmd.Parameters.AddWithValue("$k", enrolmentKey);
+        using var r = cmd.ExecuteReader();
+        var l = new List<ExamRecord>();
+        while (r.Read()) l.Add(ReadExam(r));
+        return l;
+    }
+
+    /// <summary>Exams of active enrolments whose date or registration window touches [from,to).</summary>
+    public List<(ExamRecord Exam, EnrolmentRecord Enrolment)> GetExamsBetween(DateTimeOffset from, DateTimeOffset to)
+    {
+        var enr = GetEnrolments().ToDictionary(e => e.Key);
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT {ExamCols} FROM exams
+            WHERE (begin_at < $to AND end_at >= $from) OR (enroll_from IS NOT NULL AND enroll_from < $to AND enroll_to >= $from)
+            ORDER BY begin_at
+            """;
+        cmd.Parameters.AddWithValue("$from", from.ToUnixTimeSeconds());
+        cmd.Parameters.AddWithValue("$to", to.ToUnixTimeSeconds());
+        using var r = cmd.ExecuteReader();
+        var l = new List<(ExamRecord, EnrolmentRecord)>();
+        while (r.Read())
+        {
+            var x = ReadExam(r);
+            if (enr.TryGetValue(x.EnrolmentKey, out var e)) l.Add((x, e));
+        }
+        return l;
+    }
+
+    /// <summary>All exams of all active enrolments (for reminders).</summary>
+    public List<(ExamRecord Exam, EnrolmentRecord Enrolment)> GetAllExams() =>
+        GetExamsBetween(DateTimeOffset.FromUnixTimeSeconds(0), DateTimeOffset.FromUnixTimeSeconds(4102444800));
+
+    /// <summary>Remembers the shape of a u:space exam item (once per distinct shape) so the parser can be corrected.</summary>
+    public bool RememberExamShape(string shape, string sampleJson, DateTimeOffset now)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO exam_registrations_raw(shape,first_seen_at,sample_json) VALUES($s,$t,$j)";
+        cmd.Parameters.AddWithValue("$s", shape);
+        cmd.Parameters.AddWithValue("$t", now.ToUnixTimeSeconds());
+        cmd.Parameters.AddWithValue("$j", sampleJson);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public List<Snapshot> GetEnrolmentSnapshots(string key)

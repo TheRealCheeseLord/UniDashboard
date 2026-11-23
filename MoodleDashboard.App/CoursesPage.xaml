@@ -70,6 +70,7 @@
                 <TextBlock Text="Sessions" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
                 <ToggleSwitch x:Name="PastSwitch" Header="Show past sessions" Toggled="PastSwitch_Toggled" />
                 <StackPanel x:Name="SessionsPanel" Spacing="2" />
+                <StackPanel x:Name="ExamsPanel" Spacing="4" />
                 <StackPanel x:Name="InfoPanel" Spacing="6" />
                 <Expander x:Name="HistoryExpander" Header="History" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                           Expanding="HistoryExpander_Expanding" Margin="0,8,0,0">

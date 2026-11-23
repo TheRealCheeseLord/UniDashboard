@@ -25,8 +25,13 @@ public record EnrolmentDto(
 /// (<c>authToken</c> in the page HTML) and a JSON envelope naming the target service/path.
 /// Auth: saved DPAPI-encrypted session cookies (no browser) → headless Shibboleth login (same u:account as Moodle).
 /// </summary>
+/// <summary>An exam registration ("Prüfungsanmeldung") of the student. Parsed defensively: the exact JSON shape is unverified.</summary>
+public record ExamRegistrationDto(string LvNr, string Semester, string ExtId, DateTimeOffset? Begin, DateTimeOffset? End, string? Room, string Status, string RawJson);
+
 public interface IEnrolmentSource
 {
+    /// <summary>Exam registrations seen in the last <see cref="GetEnrolmentsAsync"/> call.</summary>
+    IReadOnlyList<ExamRegistrationDto> LastExamRegistrations { get; }
     Task<List<EnrolmentDto>> GetEnrolmentsAsync(bool headless, CancellationToken ct = default);
 }
 
@@ -38,6 +43,7 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
 
     readonly string _sessionPath = sessionPath ?? Path.Combine(Paths.Root, "uspace-session.bin");
     public string? LastMethod { get; private set; }
+    public IReadOnlyList<ExamRegistrationDto> LastExamRegistrations { get; private set; } = [];
 
     public void ForgetSession() { try { File.Delete(_sessionPath); } catch (IOException) { } }
 
@@ -81,6 +87,7 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
             if (list is null) { DeleteSession(); return null; }
 
             SaveSession(await api.StorageStateAsync());   // keep rolling cookies fresh
+            LastExamRegistrations = ParseExamRegistrations(list);
             return ParseEnrolments(list);
         }
         catch (PlaywrightException) { return null; }
@@ -201,6 +208,74 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
                 Str(lv, "terminAnmerkungen") is { Length: > 0 } ta ? ta : null));
         }
         return list;
+    }
+
+    // ---------- exam registrations (defensive; shape verified only once the user has registered for an exam)
+
+    static JsonElement? Pick(JsonElement obj, params string[] names)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return null;
+        foreach (var n in names)
+            foreach (var p in obj.EnumerateObject())
+                if (p.Name.Equals(n, StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+                    return p.Value;
+        return null;
+    }
+
+    static string? AsString(JsonElement? e) => e switch
+    {
+        { ValueKind: JsonValueKind.String } v => v.GetString(),
+        { ValueKind: JsonValueKind.Number } v => v.ToString(),
+        _ => null,
+    };
+
+    static DateTimeOffset? AsDate(JsonElement? e)
+    {
+        if (e is not { } v) return null;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var n))
+            return n > 100_000_000_000 ? DateTimeOffset.FromUnixTimeMilliseconds(n) : DateTimeOffset.FromUnixTimeSeconds(n);
+        if (v.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(v.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var d)) return d;
+        return null;
+    }
+
+    public static List<ExamRegistrationDto> ParseExamRegistrations(JsonDocument doc)
+    {
+        var list = new List<ExamRegistrationDto>();
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var typ = Str(item, "anmeldungTyp");
+            var hasPruefung = item.TryGetProperty("pruefung", out var p) && p.ValueKind == JsonValueKind.Object;
+            if (!hasPruefung && (typ.Length == 0 || typ == "LEHRVERANSTALTUNG")) continue;
+
+            var exam = hasPruefung ? p : item;
+            JsonElement? lv = item.TryGetProperty("lehrveranstaltung", out var l) && l.ValueKind == JsonValueKind.Object ? l
+                : Pick(exam, "lehrveranstaltung");
+            var lvNr = AsString(lv is { } x ? Pick(x, "lvNr") : null) ?? AsString(Pick(exam, "lvNr", "lvnr")) ?? "";
+            var ext = AsString(Pick(exam, "extId", "externeId", "pruefungExtId", "pruefungsExtId", "pruefungId", "pruefungsId", "id"))
+                      ?? AsString(Pick(item, "extId", "pruefungId", "id")) ?? "";
+            var begin = AsDate(Pick(exam, "beginn", "beginnZeit", "beginnDatum", "start", "datum", "termin", "pruefungsdatum", "datumVon", "von"));
+            var end = AsDate(Pick(exam, "ende", "endeZeit", "endDatum", "bis", "datumBis"));
+            var room = AsString(Pick(exam, "raumName", "raum", "ort", "pruefungsort"));
+            var sem = Str(item, "semesterKuerzel");
+            if (sem.Length == 0 && lv is { } lvv) sem = Str(lvv, "semesterKuerzel");
+            list.Add(new(lvNr, sem, ext, begin, end, room, Str(item, "status"), item.GetRawText()));
+        }
+        return list;
+    }
+
+    /// <summary>Keys and value types only (no values), for diagnosing an unknown JSON shape.</summary>
+    public static string ShapeOf(JsonElement e, int depth = 0)
+    {
+        switch (e.ValueKind)
+        {
+            case JsonValueKind.Object when depth < 4:
+                return "{" + string.Join(",", e.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal).Select(p => p.Name + ":" + ShapeOf(p.Value, depth + 1))) + "}";
+            case JsonValueKind.Array:
+                return "[" + (e.GetArrayLength() > 0 ? ShapeOf(e[0], depth + 1) : "") + "]";
+            case JsonValueKind.Object: return "{…}";
+            default: return e.ValueKind.ToString().ToLowerInvariant();
+        }
     }
 
     static string Str(JsonElement e, string name) =>

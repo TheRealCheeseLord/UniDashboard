@@ -25,6 +25,20 @@ public static class SnapshotText
         if (r.TryGetProperty("Lecturers", out var le) && le.ValueKind == JsonValueKind.Array)
             lines.Add("Lecturers: " + string.Join(", ", le.EnumerateArray().Select(l => $"{S(l, "FirstName")} {S(l, "LastName")}".Trim())));
 
+        if (r.TryGetProperty("Exams", out var ex) && ex.ValueKind == JsonValueKind.Array && ex.GetArrayLength() > 0)
+        {
+            lines.Add("Exams:");
+            foreach (var x in ex.EnumerateArray())
+            {
+                var b = DateTimeOffset.FromUnixTimeSeconds(x.GetProperty("Begin").GetInt64()).ToLocalTime();
+                var tk = x.TryGetProperty("TimeKnown", out var t) && t.ValueKind == JsonValueKind.True;
+                string W(string n) => x.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number ? DateTimeOffset.FromUnixTimeSeconds(v.GetInt64()).ToLocalTime().ToString("d.M. HH:mm", De) : "–";
+                lines.Add($"  {b.ToString(tk ? "ddd d.M.yyyy HH:mm" : "ddd d.M.yyyy", De)}  register {W("EnrollFrom")} → {W("EnrollTo")}, deregister until {W("DisenrollUntil")}" +
+                          (x.TryGetProperty("Registered", out var rg) && rg.ValueKind == JsonValueKind.True ? "  [REGISTERED]" : "") +
+                          (x.TryGetProperty("Status", out var st) && st.GetString() == "Removed" ? "  [REMOVED]" : ""));
+            }
+        }
+
         lines.Add("Sessions:");
         if (r.TryGetProperty("Sessions", out var se) && se.ValueKind == JsonValueKind.Array)
             foreach (var s in se.EnumerateArray())
@@ -41,7 +55,7 @@ public static class SnapshotText
             if (uf.TryGetProperty("Groups", out var gs) && gs.ValueKind == JsonValueKind.Array)
                 foreach (var g in gs.EnumerateArray())
                     foreach (var field in new[] { "Comment", "Performance", "Examination", "Preconditions", "Literature" })
-                        if (g.TryGetProperty(field, out var d) && d.ValueKind == JsonValueKind.Object)
+                        if (g.TryGetProperty(field, out var d) && d.ValueKind == JsonValueKind.Object && d.EnumerateObject().Any())
                         {
                             var text = d.TryGetProperty("de", out var de) ? de.GetString() : d.EnumerateObject().FirstOrDefault().Value.GetString();
                             if (!string.IsNullOrWhiteSpace(text)) { lines.Add(field + ":"); lines.AddRange(DocxGenerator.HtmlToPlainText(text).Split('\n').Select(x => "  " + x)); }
