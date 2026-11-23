@@ -206,6 +206,98 @@ public class ExamPlannerTests
         Assert.All(r.Entries, e => Assert.Equal(e.Course.Options.Min(o => o.Begin).Date, e.Chosen!.Begin.Date));
     }
 
+    static PlanSettings Range(PlanStrategy st, DateOnly? from = null, DateOnly? to = null, int? target = null, Dictionary<string, string>? pins = null) =>
+        new() { Strategy = st, NotBefore = from, NotAfter = to, TargetGapDays = target, Pins = pins ?? new() };
+
+    [Fact]
+    public void Not_before_excludes_earlier_dates_for_every_strategy()
+    {
+        foreach (var st in new[] { PlanStrategy.Earliest, PlanStrategy.Latest, PlanStrategy.Spread })
+        {
+            var r = ExamPlanner.Plan([A, B], [], Range(st, from: new DateOnly(2099, 2, 15)), Now);
+            Assert.Equal(At(2, 20), Chosen(r, "A"));
+            Assert.Equal(At(2, 25), Chosen(r, "B"));
+        }
+    }
+
+    [Fact]
+    public void Not_after_excludes_later_dates()
+    {
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Latest, to: new DateOnly(2099, 2, 12)), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));
+        Assert.Equal(At(2, 11), Chosen(r, "B"));
+        Assert.Equal("Outside your date range", r.Entries[0].Options.Last().IneligibleReason);
+    }
+
+    [Fact]
+    public void Range_is_inclusive_on_both_ends()
+    {
+        var r = ExamPlanner.Plan([A], [], Range(PlanStrategy.Earliest, from: new DateOnly(2099, 2, 10), to: new DateOnly(2099, 2, 10)), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));
+    }
+
+    [Fact]
+    public void Course_without_any_date_in_range_is_unplanned_with_a_clear_reason()
+    {
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Earliest, from: new DateOnly(2099, 3, 1)), Now);
+        Assert.All(r.Entries, e => Assert.Equal("No exam date within your date range", e.UnplannedReason));
+    }
+
+    [Fact]
+    public void Pinned_date_outside_the_range_is_kept_with_a_warning()
+    {
+        var r = ExamPlanner.Plan([A], [], Range(PlanStrategy.Earliest, from: new DateOnly(2099, 2, 15), pins: new() { ["A"] = "A|a1" }), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));
+        Assert.Contains(r.Entries[0].Warnings, w => w.Contains("outside your date range"));
+    }
+
+    [Fact]
+    public void Target_gap_picks_the_earliest_arrangement_that_meets_it()
+    {
+        // 7-day target: A10+B25 (15 d) and A20+B11 (9 d) both qualify; A20+B11 is earlier overall.
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Spread, target: 7), Now);
+        Assert.Equal(At(2, 20), Chosen(r, "A"));
+        Assert.Equal(At(2, 11), Chosen(r, "B"));
+        Assert.True(r.TargetMet);
+        Assert.Equal(9, r.TightestGap);
+    }
+
+    [Fact]
+    public void Small_target_does_not_push_dates_further_than_needed()
+    {
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Spread, target: 1), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));          // earliest arrangement already has a 1-day gap
+        Assert.Equal(At(2, 11), Chosen(r, "B"));
+        Assert.True(r.TargetMet);
+    }
+
+    [Fact]
+    public void Unreachable_target_falls_back_to_the_least_shortfall()
+    {
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Spread, target: 60), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));
+        Assert.Equal(At(2, 25), Chosen(r, "B"));          // the widest arrangement
+        Assert.False(r.TargetMet);
+    }
+
+    [Fact]
+    public void No_target_keeps_the_maximum_spread_behaviour()
+    {
+        var withNull = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Spread, target: null), Now);
+        var old = ExamPlanner.Plan([A, B], [], S(PlanStrategy.Spread), Now);
+        Assert.Equal(Chosen(old, "A"), Chosen(withNull, "A"));
+        Assert.Equal(Chosen(old, "B"), Chosen(withNull, "B"));
+        Assert.Null(withNull.TargetMet);
+    }
+
+    [Fact]
+    public void Target_gap_is_ignored_by_the_other_strategies()
+    {
+        var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Earliest, target: 30), Now);
+        Assert.Equal(At(2, 10), Chosen(r, "A"));
+        Assert.Null(r.TargetGapDays);
+    }
+
     [Fact]
     public void Timeline_is_sorted_and_gaps_are_in_days()
     {

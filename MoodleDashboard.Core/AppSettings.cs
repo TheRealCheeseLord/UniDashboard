@@ -44,6 +44,22 @@ public class AppSettings(Database db)
         get => ReadJson<Dictionary<string, string>>("planner_pins") ?? new();
         set => Set("planner_pins", JsonSerializer.Serialize(value));
     }
+    public DateOnly? PlannerNotBefore
+    {
+        get => DateOnly.TryParse(db.GetSetting("planner_not_before"), System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
+        set => Set("planner_not_before", value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "");
+    }
+    public DateOnly? PlannerNotAfter
+    {
+        get => DateOnly.TryParse(db.GetSetting("planner_not_after"), System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
+        set => Set("planner_not_after", value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "");
+    }
+    /// <summary>Ideal gap between exams for the "spaced out" strategy; null = as large as possible.</summary>
+    public int? PlannerTargetGap
+    {
+        get => int.TryParse(db.GetSetting("planner_target_gap"), out var v) && v > 0 ? v : null;
+        set => Set("planner_target_gap", value?.ToString() ?? "");
+    }
     T? ReadJson<T>(string key)
     {
         try { return db.GetSetting(key) is { Length: > 0 } s ? JsonSerializer.Deserialize<T>(s) : default; }

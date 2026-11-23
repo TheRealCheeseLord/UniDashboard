@@ -15,6 +15,11 @@ public class PlanSettings
     public ISet<string> Excluded { get; init; } = new HashSet<string>();
     /// <summary>courseKey → ExamRecord.Key the user pinned.</summary>
     public IReadOnlyDictionary<string, string> Pins { get; init; } = new Dictionary<string, string>();
+    /// <summary>Optional date range (inclusive local days) applied to every strategy.</summary>
+    public DateOnly? NotBefore { get; init; }
+    public DateOnly? NotAfter { get; init; }
+    /// <summary>"Spread" only: ideal gap between exams in days; null = as large as possible.</summary>
+    public int? TargetGapDays { get; init; }
 }
 
 /// <summary>One possible date of a course with everything worth telling the user about it.</summary>
@@ -49,6 +54,11 @@ public class PlanResult
     /// <summary>Days between consecutive chosen exams (same length as Timeline − 1).</summary>
     public List<int> Gaps { get; } = [];
     public int TotalPenalty { get; set; }
+    /// <summary>Spread with a target gap: was the target reached everywhere? (null when no target / fewer than two exams)</summary>
+    public bool? TargetMet { get; set; }
+    public int? TargetGapDays { get; set; }
+    /// <summary>Smallest gap between consecutive chosen exams in days (null with fewer than two exams).</summary>
+    public int? TightestGap => Gaps.Count > 0 ? Gaps.Min() : null;
 }
 
 /// <summary>
@@ -72,7 +82,7 @@ public static class ExamPlanner
         {
             var entry = new PlanEntry { Course = course };
             foreach (var x in course.Options.Where(o => o.Status == ExamStatus.Active).OrderBy(o => o.Begin))
-                entry.Options.Add(BuildOption(x, busy, now, today));
+                entry.Options.Add(BuildOption(x, busy, now, today, settings));
             result.Entries.Add(entry);
 
             // Which options may the search choose from?
@@ -93,6 +103,7 @@ public static class ExamPlanner
             if (choices.Count == 0)
             {
                 entry.UnplannedReason = entry.Options.Count == 0 ? "No exam dates published yet"
+                    : entry.Options.Any(o => o.IneligibleReason == "Outside your date range") ? "No exam date within your date range"
                     : entry.Options.All(o => o.IneligibleReason?.Contains("closed") == true) ? "All registration windows have closed"
                     : "No upcoming exam date available";
                 continue;
@@ -102,7 +113,7 @@ public static class ExamPlanner
 
         if (candidates.Count > 0)
         {
-            var picks = Search(candidates.Select(c => c.Choices).ToList(), settings.Strategy, today);
+            var picks = Search(candidates.Select(c => c.Choices).ToList(), settings.Strategy, today, settings.TargetGapDays);
             for (var i = 0; i < candidates.Count; i++) candidates[i].Entry.Chosen = picks[i].Exam;
             var chosenOptions = picks;
 
@@ -110,6 +121,7 @@ public static class ExamPlanner
             for (var i = 0; i < candidates.Count; i++)
             {
                 var e = candidates[i].Entry;
+                if (!picks[i].Eligible && picks[i].IneligibleReason is { } why && e.FixedReason == "pinned") e.Warnings.Add("⚠ Pinned date: " + why.ToLowerInvariant());
                 e.Warnings.AddRange(picks[i].Warnings);
                 for (var j = 0; j < picks.Count; j++)
                     if (j != i) AddPairWarning(e.Warnings, picks[i], picks[j], candidates[j].Entry.Course.Title);
@@ -131,18 +143,20 @@ public static class ExamPlanner
                 }
             }
 
-            result.TotalPenalty = Evaluate(chosenOptions, today).Penalty;
+            result.TotalPenalty = Evaluate(chosenOptions, today, settings.TargetGapDays).Penalty;
         }
 
         foreach (var e in result.Entries.Where(e => e.Chosen is not null).OrderBy(e => e.Chosen!.Begin)) result.Timeline.Add(e);
         for (var i = 1; i < result.Timeline.Count; i++)
             result.Gaps.Add(CalendarModel.DayOf(result.Timeline[i].Chosen!.Begin).DayNumber - CalendarModel.DayOf(result.Timeline[i - 1].Chosen!.Begin).DayNumber);
+        result.TargetGapDays = settings.Strategy == PlanStrategy.Spread ? settings.TargetGapDays : null;
+        if (result.TargetGapDays is { } tg && result.Gaps.Count > 0) result.TargetMet = result.Gaps.All(g => g >= tg);
         return result;
     }
 
     // ---------- options
 
-    static PlanOption BuildOption(ExamRecord x, IReadOnlyList<PlanBusy> busy, DateTimeOffset now, DateOnly today)
+    static PlanOption BuildOption(ExamRecord x, IReadOnlyList<PlanBusy> busy, DateTimeOffset now, DateOnly today, PlanSettings settings)
     {
         var day = CalendarModel.DayOf(x.Begin);
         var from = x.TimeKnown ? x.Begin : StartOfDay(day);
@@ -152,6 +166,8 @@ public static class ExamPlanner
         // Eligibility: still ahead of us, and registration not already closed.
         if (x.TimeKnown ? x.End < now : day < today) { o.Eligible = false; o.IneligibleReason = "Date already passed"; }
         else if (x.HasWindow && x.EnrollTo < now) { o.Eligible = false; o.IneligibleReason = "Registration already closed"; }
+        else if ((settings.NotBefore is { } nb && day < nb) || (settings.NotAfter is { } na && day > na))
+        { o.Eligible = false; o.IneligibleReason = "Outside your date range"; }
 
         if (x.TimeKnown)
         {
@@ -209,9 +225,9 @@ public static class ExamPlanner
 
     // ---------- scoring & search
 
-    sealed record Score(int Penalty, double[] AscGaps, double SumDays);
+    sealed record Score(int Penalty, double[] AscGaps, double SumDays, double Shortfall);
 
-    static Score Evaluate(IReadOnlyList<PlanOption> picks, DateOnly today)
+    static Score Evaluate(IReadOnlyList<PlanOption> picks, DateOnly today, int? target)
     {
         var penalty = picks.Sum(p => p.SessionPenalty);
         for (var i = 0; i < picks.Count; i++)
@@ -221,17 +237,25 @@ public static class ExamPlanner
         var gaps = new List<double>();
         for (var i = 1; i < days.Count; i++) gaps.Add(days[i] - days[i - 1]);
         gaps.Sort();
-        return new(penalty, gaps.ToArray(), days.Sum());
+        var shortfall = target is { } t ? gaps.Sum(g => g < t ? (t - g) * (t - g) : 0) : 0;
+        return new(penalty, gaps.ToArray(), days.Sum(), shortfall);
     }
 
     /// <summary>True when <paramref name="a"/> is strictly better than <paramref name="b"/>.</summary>
-    static bool Better(Score a, Score b, PlanStrategy strategy)
+    static bool Better(Score a, Score b, PlanStrategy strategy, int? target)
     {
         if (a.Penalty != b.Penalty) return a.Penalty < b.Penalty;
         switch (strategy)
         {
             case PlanStrategy.Latest:
                 return a.SumDays > b.SumDays;
+            case PlanStrategy.Spread when target is not null:
+                // Reach the ideal gap with as little squared shortfall as possible; once it is met, don't push dates later than needed.
+                if (a.Shortfall != b.Shortfall) return a.Shortfall < b.Shortfall;
+                if (a.Shortfall > 0)
+                    for (var i = 0; i < Math.Min(a.AscGaps.Length, b.AscGaps.Length); i++)
+                        if (a.AscGaps[i] != b.AscGaps[i]) return a.AscGaps[i] > b.AscGaps[i];
+                return a.SumDays < b.SumDays;
             case PlanStrategy.Spread:
                 for (var i = 0; i < Math.Min(a.AscGaps.Length, b.AscGaps.Length); i++)
                     if (a.AscGaps[i] != b.AscGaps[i]) return a.AscGaps[i] > b.AscGaps[i];
@@ -241,7 +265,7 @@ public static class ExamPlanner
         }
     }
 
-    static List<PlanOption> Search(List<List<PlanOption>> choices, PlanStrategy strategy, DateOnly today)
+    static List<PlanOption> Search(List<List<PlanOption>> choices, PlanStrategy strategy, DateOnly today, int? target)
     {
         long product = 1;
         foreach (var c in choices) { product *= c.Count; if (product > ExhaustiveLimit) break; }
@@ -257,8 +281,8 @@ public static class ExamPlanner
                 if (bestScore is not null && penaltySoFar > bestScore.Penalty) return;   // penalty only grows
                 if (i == choices.Count)
                 {
-                    var s = Evaluate(pick, today);
-                    if (bestScore is null || Better(s, bestScore, strategy)) { bestScore = s; best = [.. pick]; }
+                    var s = Evaluate(pick, today, target);
+                    if (bestScore is null || Better(s, bestScore, strategy, target)) { bestScore = s; best = [.. pick]; }
                     return;
                 }
                 foreach (var o in choices[i])
@@ -275,7 +299,7 @@ public static class ExamPlanner
 
         // Large instances: start from the individually best choice, then improve one course at a time.
         var current = choices.Select(c => c.OrderBy(o => o.SessionPenalty).ThenBy(o => strategy == PlanStrategy.Latest ? -o.Exam.Begin.ToUnixTimeSeconds() : o.Exam.Begin.ToUnixTimeSeconds()).First()).ToList();
-        var score = Evaluate(current, today);
+        var score = Evaluate(current, today, target);
         for (var pass = 0; pass < 50; pass++)
         {
             var improved = false;
@@ -284,8 +308,8 @@ public static class ExamPlanner
                 {
                     if (ReferenceEquals(o, current[i])) continue;
                     var trial = new List<PlanOption>(current) { [i] = o };
-                    var s = Evaluate(trial, today);
-                    if (Better(s, score, strategy)) { current = trial; score = s; improved = true; }
+                    var s = Evaluate(trial, today, target);
+                    if (Better(s, score, strategy, target)) { current = trial; score = s; improved = true; }
                 }
             if (!improved) break;
         }

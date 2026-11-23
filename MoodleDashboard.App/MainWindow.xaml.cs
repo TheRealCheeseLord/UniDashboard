@@ -59,7 +59,11 @@ public sealed partial class MainWindow : Window
                 CalendarPage.RequestedView = arg;
                 Nav.SelectedItem = NavItem("calendar");
             }
-            else if (part == "--planner") Nav.SelectedItem = NavItem("planner");
+            else if (part == "--planner" || part.StartsWith("--planner="))
+            {
+                PlannerPage.RequestedTab = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
+                Nav.SelectedItem = NavItem("planner");
+            }
             else if (part == "--login")
             {
                 Nav.SelectedItem = NavItem("settings");
