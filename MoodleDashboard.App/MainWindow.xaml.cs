@@ -14,7 +14,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Title = "MoodleDashboard";
         ExtendsContentIntoTitleBar = false;
-        AppWindow.Resize(new(1180, 780));
+        AppWindow.Resize(new(1180, 780));   // size used when un-maximised
+        if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p) p.Maximize();
         Nav.SelectedItem = Nav.MenuItems[0];
     }
 
