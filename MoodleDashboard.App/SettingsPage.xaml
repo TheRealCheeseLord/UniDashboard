@@ -1,0 +1,50 @@
+<Page
+    x:Class="MoodleDashboard.App.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Spacing="14" Padding="32,20,32,32" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+            <InfoBar x:Name="Info" IsOpen="False" IsClosable="True" />
+
+            <TextBlock Text="Moodle" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <TextBox x:Name="BaseUrlBox" Header="Moodle base URL" LostFocus="BaseUrlBox_LostFocus" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button x:Name="LoginButton" Content="Login / Re-login (opens Edge)" Click="LoginButton_Click" />
+                <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" />
+                <TextBlock x:Name="LoginStatus" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBox x:Name="UserBox" Header="univie username (for the background agent's silent login)" />
+            <PasswordBox x:Name="PassBox" Header="Password (stored in Windows Credential Manager)" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Save credentials" Click="SaveCreds_Click" />
+                <Button Content="Remove credentials" Click="RemoveCreds_Click" />
+            </StackPanel>
+
+            <TextBlock Text="Courses" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <Button Content="Refresh course list" Click="RefreshCourses_Click" />
+            <StackPanel x:Name="CoursePanel" Spacing="2" />
+
+            <TextBlock Text="Background agent" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <ToggleSwitch x:Name="AgentSwitch" Header="Run in background (Task Scheduler)" Toggled="AgentSwitch_Toggled" />
+            <NumberBox x:Name="IntervalBox" Header="Sync interval (minutes)" Minimum="5" Maximum="1440" SpinButtonPlacementMode="Inline"
+                       ValueChanged="IntervalBox_ValueChanged" Width="260" HorizontalAlignment="Left" />
+            <NumberBox x:Name="ReminderBox" Header="Due reminder threshold (hours)" Minimum="1" Maximum="240" SpinButtonPlacementMode="Inline"
+                       ValueChanged="ReminderBox_ValueChanged" Width="260" HorizontalAlignment="Left" />
+
+            <TextBlock Text="Notifications" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <StackPanel x:Name="NotifyPanel" Spacing="2" />
+
+            <TextBlock Text="Word template" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,0" />
+            <TextBox x:Name="NameBox" Header="Name (placeholder {{Author}})" LostFocus="NameBox_LostFocus" />
+            <TextBox x:Name="MatrikelBox" Header="Matrikelnummer (placeholder {{Matrikel}})" LostFocus="MatrikelBox_LostFocus" />
+            <TextBox x:Name="TemplateBox" Header="Template path (.docx / .dotx)" LostFocus="TemplateBox_LostFocus" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Browse…" Click="BrowseTemplate_Click" />
+                <Button Content="Reset to default template" Click="ResetTemplate_Click" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"
+                       Text="Placeholders: {{Title}} {{Course}} {{Author}} {{Matrikel}} {{Date}} {{DueDate}} {{MoodleUrl}} {{Description}}" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="MoodleDashboard.Agent/MoodleDashboard.Agent.csproj" />
+  <Project Path="MoodleDashboard.App/MoodleDashboard.App.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="MoodleDashboard.Core.Tests/MoodleDashboard.Core.Tests.csproj" />
+  <Project Path="MoodleDashboard.Core/MoodleDashboard.Core.csproj" />
+  <Project Path="MoodleDashboard.Smoke/MoodleDashboard.Smoke.csproj" />
+</Solution>
