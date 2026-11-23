@@ -291,6 +291,29 @@ public class ExamPlannerTests
     }
 
     [Fact]
+    public void Target_gap_stays_close_instead_of_jumping_to_a_far_away_date()
+    {
+        // Two fixed exams 2 days apart; the third course has an early date (2 days before) and one far later.
+        var x = C("X", Ex("X", "x1", At(1, 28)));
+        var y = C("Y", Ex("Y", "y1", At(1, 30)));
+        var j = C("J", Ex("J", "j1", At(1, 26)), Ex("J", "j2", At(4, 5)));
+        var r = ExamPlanner.Plan([x, y, j], [], Range(PlanStrategy.Spread, target: 2), Now);
+        Assert.Equal(At(1, 26), Chosen(r, "J"));
+        Assert.Equal([2, 2], r.Gaps);
+        Assert.True(r.TargetMet);
+    }
+
+    [Fact]
+    public void Target_gap_prefers_the_nearest_gap_in_either_direction()
+    {
+        // X on Jan 10; the other course may take Jan 12 (gap 2) or Jan 20 (gap 10) or Feb 15 (gap 36): target 12 → Jan 20 is closest.
+        var x = C("X", Ex("X", "x1", At(1, 10)));
+        var o = C("O", Ex("O", "o1", At(1, 12)), Ex("O", "o2", At(1, 20)), Ex("O", "o3", At(2, 15)));
+        var r = ExamPlanner.Plan([x, o], [], Range(PlanStrategy.Spread, target: 12), Now);
+        Assert.Equal(At(1, 20), Chosen(r, "O"));
+    }
+
+    [Fact]
     public void Target_gap_is_ignored_by_the_other_strategies()
     {
         var r = ExamPlanner.Plan([A, B], [], Range(PlanStrategy.Earliest, target: 30), Now);

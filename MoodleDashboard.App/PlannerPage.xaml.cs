@@ -140,7 +140,7 @@ public sealed partial class PlannerPage : Page
             if (r.TightestGap is { } tg) summary.Add($"smallest gap {tg} {(tg == 1 ? "day" : "days")}");
             summary.Add(clashes == 0 ? "no clashes" : $"{clashes} with a clash");
             if (r.TargetGapDays is { } t && r.TargetMet is { } met)
-                summary.Add(met ? $"ideal gap of {t} days reached" : $"ideal gap of {t} days not reachable");
+                summary.Add(met ? $"gaps match the ideal of {t} days" : $"closest possible to the ideal gap of {t} days");
         }
         if (unplanned > 0) summary.Add($"{unplanned} course(s) not planned");
         PlanPanel.Children.Add(new TextBlock
@@ -148,6 +148,8 @@ public sealed partial class PlannerPage : Page
             Text = r.Timeline.Count == 0 && unplanned == 0 ? (_courses.Count == 0 ? "None of your courses has published exam dates yet." : "No course selected.") : string.Join("  ·  ", summary),
             FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap,
         });
+
+        if (r.Timeline.Count > 1) PlanPanel.Children.Add(GapLegend(r.TargetGapDays));
 
         // ---- chronological cards with gap connectors
         for (var i = 0; i < r.Timeline.Count; i++)
@@ -165,9 +167,7 @@ public sealed partial class PlannerPage : Page
     FrameworkElement Connector(int gap, PlanSettings settings, int? target)
     {
         var text = gap switch { 0 => "same day", 1 => "next day", _ => $"{gap} days later" };
-        Brush color;
-        if (target is { } t) color = gap >= t ? Res("SystemFillColorSuccessBrush") : Res("SystemFillColorCautionBrush");
-        else color = gap <= 1 ? Res("SystemFillColorCriticalBrush") : gap <= 3 ? Res("SystemFillColorCautionBrush") : Res("TextFillColorSecondaryBrush");
+        var color = GapBrush(gap, target);
 
         var g = new Grid { Margin = new Thickness(46, 0, 0, 0), ColumnSpacing = 10, MinHeight = 26 };
         g.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
@@ -177,6 +177,38 @@ public sealed partial class PlannerPage : Page
         Grid.SetColumn(tb, 1);
         g.Children.Add(tb);
         return g;
+    }
+
+    /// <summary>
+    /// One colour rule for gaps (see the legend): same day = red, next day = amber (always); other gaps: with an ideal gap set
+    /// green when close to it, amber when tighter, grey when wider; without one amber up to 3 days, grey beyond.
+    /// </summary>
+    static Brush GapBrush(int gap, int? target)
+    {
+        if (gap <= 0) return Res("SystemFillColorCriticalBrush");
+        if (gap == 1) return Res("SystemFillColorCautionBrush");
+        if (target is { } t)
+        {
+            var tol = Math.Max(1, (int)Math.Ceiling(t / 4.0));
+            return Math.Abs(gap - t) <= tol ? Res("SystemFillColorSuccessBrush") : gap < t ? Res("SystemFillColorCautionBrush") : Res("TextFillColorSecondaryBrush");
+        }
+        return gap <= 3 ? Res("SystemFillColorCautionBrush") : Res("TextFillColorSecondaryBrush");
+    }
+
+    FrameworkElement GapLegend(int? target)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Margin = new Thickness(0, 0, 0, 2) };
+        void Item(Brush b, string text) => sp.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 5,
+            Children = { new Border { Width = 4, Height = 14, CornerRadius = new CornerRadius(2), Background = b }, new TextBlock { Text = text, FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") } },
+        });
+        sp.Children.Add(new TextBlock { Text = "Gap colours:", FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") });
+        Item(Res("SystemFillColorCriticalBrush"), "same day");
+        Item(Res("SystemFillColorCautionBrush"), target is null ? "next day / up to 3 days" : "next day / tighter than ideal");
+        if (target is not null) Item(Res("SystemFillColorSuccessBrush"), "about the ideal gap");
+        Item(Res("TextFillColorSecondaryBrush"), target is null ? "4+ days" : "more space than ideal");
+        return sp;
     }
 
     FrameworkElement PlanCard(PlanEntry e)

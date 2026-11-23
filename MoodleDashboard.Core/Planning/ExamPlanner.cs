@@ -18,7 +18,7 @@ public class PlanSettings
     /// <summary>Optional date range (inclusive local days) applied to every strategy.</summary>
     public DateOnly? NotBefore { get; init; }
     public DateOnly? NotAfter { get; init; }
-    /// <summary>"Spread" only: ideal gap between exams in days; null = as large as possible.</summary>
+    /// <summary>"Spread" only: ideal gap between exams in days — gaps are kept as close to it as possible (too tight or too wide); null = as large as possible.</summary>
     public int? TargetGapDays { get; init; }
 }
 
@@ -54,7 +54,7 @@ public class PlanResult
     /// <summary>Days between consecutive chosen exams (same length as Timeline − 1).</summary>
     public List<int> Gaps { get; } = [];
     public int TotalPenalty { get; set; }
-    /// <summary>Spread with a target gap: was the target reached everywhere? (null when no target / fewer than two exams)</summary>
+    /// <summary>Spread with a target gap: is every gap close to the target? (null when no target / fewer than two exams)</summary>
     public bool? TargetMet { get; set; }
     public int? TargetGapDays { get; set; }
     /// <summary>Smallest gap between consecutive chosen exams in days (null with fewer than two exams).</summary>
@@ -150,7 +150,12 @@ public static class ExamPlanner
         for (var i = 1; i < result.Timeline.Count; i++)
             result.Gaps.Add(CalendarModel.DayOf(result.Timeline[i].Chosen!.Begin).DayNumber - CalendarModel.DayOf(result.Timeline[i - 1].Chosen!.Begin).DayNumber);
         result.TargetGapDays = settings.Strategy == PlanStrategy.Spread ? settings.TargetGapDays : null;
-        if (result.TargetGapDays is { } tg && result.Gaps.Count > 0) result.TargetMet = result.Gaps.All(g => g >= tg);
+        // "Met" = every gap is close to the target (within a quarter of it, at least one day).
+        if (result.TargetGapDays is { } tg && result.Gaps.Count > 0)
+        {
+            var tolerance = Math.Max(1, (int)Math.Ceiling(tg / 4.0));
+            result.TargetMet = result.Gaps.All(g => Math.Abs(g - tg) <= tolerance);
+        }
         return result;
     }
 
@@ -237,7 +242,8 @@ public static class ExamPlanner
         var gaps = new List<double>();
         for (var i = 1; i < days.Count; i++) gaps.Add(days[i] - days[i - 1]);
         gaps.Sort();
-        var shortfall = target is { } t ? gaps.Sum(g => g < t ? (t - g) * (t - g) : 0) : 0;
+        // With a target: squared deviation in both directions, so a gap far above the target is as unwelcome as one far below.
+        var shortfall = target is { } t ? gaps.Sum(g => (g - t) * (g - t)) : 0;
         return new(penalty, gaps.ToArray(), days.Sum(), shortfall);
     }
 
@@ -250,11 +256,8 @@ public static class ExamPlanner
             case PlanStrategy.Latest:
                 return a.SumDays > b.SumDays;
             case PlanStrategy.Spread when target is not null:
-                // Reach the ideal gap with as little squared shortfall as possible; once it is met, don't push dates later than needed.
+                // As close to the ideal gap as possible (both too tight and too wide count); equally close → earlier.
                 if (a.Shortfall != b.Shortfall) return a.Shortfall < b.Shortfall;
-                if (a.Shortfall > 0)
-                    for (var i = 0; i < Math.Min(a.AscGaps.Length, b.AscGaps.Length); i++)
-                        if (a.AscGaps[i] != b.AscGaps[i]) return a.AscGaps[i] > b.AscGaps[i];
                 return a.SumDays < b.SumDays;
             case PlanStrategy.Spread:
                 for (var i = 0; i < Math.Min(a.AscGaps.Length, b.AscGaps.Length); i++)

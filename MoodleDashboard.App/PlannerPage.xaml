@@ -33,12 +33,12 @@
                 <!-- Spread slider (only for the "spaced out" strategy) -->
                 <StackPanel x:Name="SpreadPanel" Grid.Column="1" Spacing="2">
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="Ideal gap between exams:" VerticalAlignment="Center" />
+                        <TextBlock Text="Ideal gap between exams (kept as close to it as possible):" VerticalAlignment="Center" />
                         <TextBlock x:Name="GapLabel" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
                     <Slider x:Name="GapSlider" Minimum="1" Maximum="61" Value="61" StepFrequency="1" TickFrequency="10" TickPlacement="Outside"
                             MaxWidth="560" HorizontalAlignment="Left" Width="560" ValueChanged="GapSlider_ValueChanged" />
-                    <TextBlock Text="1 day  ◂ tight  ·  spread out ▸  Maximum" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="1 day  ◂ close together  ·  far apart ▸  Maximum (as large as possible)" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
 
                 <!-- Optional date range (all strategies) -->
