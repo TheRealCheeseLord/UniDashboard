@@ -4,6 +4,12 @@ using UniDashboard.Core.Auth;
 
 // Smoke test. Flags: --fresh-login   forget token + saved web session, then log in headless and time it
 //                    --reuse         force a login attempt via the saved session only (timing)
+if (args.Contains("--seed-demo"))   // fake data for screenshots/demos: Smoke --seed-demo <folder>; run the app with UNIDASHBOARD_DATA_DIR=<folder>
+{
+    DemoSeed.Run(args[Array.IndexOf(args, "--seed-demo") + 1]);
+    return;
+}
+
 var db = new Database();
 var settings = new AppSettings(db);
 var tokens = new TokenStore();

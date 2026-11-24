@@ -6,6 +6,8 @@ public static class Paths
 
     static string Init()
     {
+        // Lets demos, screenshots and tests run against a throwaway data folder instead of the real one.
+        if (Environment.GetEnvironmentVariable("UNIDASHBOARD_DATA_DIR") is { Length: > 0 } custom) return EnsureDir(custom);
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var dir = Path.Combine(local, "UniDashboard");
         var legacy = Path.Combine(local, "MoodleLite");   // app was renamed; carry over data, token, session, logs

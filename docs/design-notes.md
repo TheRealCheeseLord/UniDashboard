@@ -1,3 +1,5 @@
+> **Historical document.** This is the original design of the first, Moodle-only version of the app. It has since grown (u:space/u:find courses, calendar, exam planner, calendar export, Google sync) and some details below are outdated. See the [README](../README.md) and [architecture](architecture.md) for the current state.
+
 # UniDashboard — Spec
 
 A lean, Windows-native dashboard for Moodle (University of Vienna) assignments. It is the "lite" version of a bigger Go/Tauri project, but a **fully standalone codebase** with no shared code.
