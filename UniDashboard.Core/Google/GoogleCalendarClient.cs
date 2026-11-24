@@ -79,12 +79,14 @@ public class GoogleCalendarClient(HttpClient http, Func<bool, CancellationToken,
         return ParseEvent(doc.RootElement, calendarId, calendarName);
     }
 
-    public async Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData e, string? ifMatchEtag, CancellationToken ct = default)
+    public async Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData e, string? ifMatchEtag, CancellationToken ct = default, bool restore = false)
     {
         var url = $"{Base}/calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}?sendUpdates=none&fields={EventFields}";
         using var doc = await SendJsonAsync(() =>
         {
-            var req = Json(new HttpMethod("PATCH"), url, Body(e, includeId: false));
+            var body = Body(e, includeId: false);
+            if (restore) body["status"] = "confirmed";   // un-deletes an event that was removed earlier (same id)
+            var req = Json(new HttpMethod("PATCH"), url, body);
             if (ifMatchEtag is not null) req.Headers.TryAddWithoutValidation("If-Match", ifMatchEtag);
             return req;
         }, ct);

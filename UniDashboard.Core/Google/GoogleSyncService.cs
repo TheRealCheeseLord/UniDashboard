@@ -110,7 +110,14 @@ public class GoogleSyncService(Database db, AppSettings settings, IGoogleCalenda
                         {
                             // Deterministic id already exists: adopt it only if it is really ours.
                             var existing = await api.GetAsync(cal, calName, data.Id, ct);
-                            if (existing is { Managed: true } && existing.ManagedKey == a.ItemKey)
+                            if (existing is { Cancelled: true })
+                            {
+                                // Deleted earlier (e.g. "remove everything"): Google keeps the id, so bring the event back.
+                                var r = await api.PatchAsync(cal, calName, existing.Id, data, null, ct, restore: true);
+                                db.SaveGoogleState(new(a.ItemKey, cal, r.Id, a.Item!.Hash, r.Etag, r.Updated));
+                                created++;
+                            }
+                            else if (existing is { Managed: true } && existing.ManagedKey == a.ItemKey)
                             {
                                 db.SaveGoogleState(new(a.ItemKey, cal, existing.Id, existing.ManagedHash ?? "", existing.Etag, existing.Updated));
                                 skipped++;

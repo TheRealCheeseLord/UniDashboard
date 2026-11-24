@@ -41,12 +41,12 @@ sealed class FakeGoogle : IGoogleCalendar
         return Task.FromResult(e);
     }
 
-    public Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData d, string? ifMatchEtag, CancellationToken ct = default)
+    public Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData d, string? ifMatchEtag, CancellationToken ct = default, bool restore = false)
     {
         if (!Events[calendarId].TryGetValue(eventId, out var cur)) throw new GoogleNotFoundException("gone");
         if (ifMatchEtag is not null && ifMatchEtag != cur.Etag) throw new GooglePreconditionException("etag");
         Writes++;
-        var e = cur with { Summary = d.Summary, Start = d.Start, End = d.End, AllDay = d.AllDay, Location = d.Location, Description = d.Description,
+        var e = cur with { Cancelled = restore ? false : cur.Cancelled, Summary = d.Summary, Start = d.Start, End = d.End, AllDay = d.AllDay, Location = d.Location, Description = d.Description,
             Etag = NextEtag(), Managed = true, ManagedKey = d.ItemKey, ManagedHash = d.ItemHash };
         Events[calendarId][eventId] = e;
         return Task.FromResult(e);
@@ -571,7 +571,7 @@ public class GoogleCalendarClientTests
     static GoogleEventData Data(bool allDay = false) => new("mdabc123", "Algebra (VO)", "HS 1", "desc", new DateTimeOffset(2099, 2, 3, 9, 0, 0, TimeSpan.FromHours(1)),
         new DateTimeOffset(2099, 2, 3, 10, 30, 0, TimeSpan.FromHours(1)), allDay, "https://ufind.univie.ac.at/x", "session:k", "hash1");
 
-    const string OneEvent = """{"id":"mdabc123","etag":"\"e1\"","summary":"Algebra (VO)","updated":"2099-01-01T00:00:00Z","start":{"dateTime":"2099-02-03T09:00:00+01:00"},"end":{"dateTime":"2099-02-03T10:30:00+01:00"},"extendedProperties":{"private":{"md_managed":"1","md_key":"session:k","md_hash":"hash1"}}}""";
+    const string OneEvent = """{"id":"mdabc123","etag":"\"e1\"","summary":"Algebra (VO)","updated":"2099-01-01T00:00:00Z","start":{"dateTime":"2099-02-03T09:00:00+01:00"},"end":{"dateTime":"2099-02-03T10:30:00+01:00"},"extendedProperties":{"private":{"uni_dashboard_managed":"1","uni_dashboard_key":"session:k","uni_dashboard_hash":"hash1"}}}""";
 
     [Fact]
     public async Task Insert_sends_marker_explicit_id_vienna_time_and_no_notifications()
@@ -585,8 +585,8 @@ public class GoogleCalendarClientTests
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
         Assert.Equal("mdabc123", root.GetProperty("id").GetString());
-        Assert.Equal("1", root.GetProperty("extendedProperties").GetProperty("private").GetProperty("md_managed").GetString());
-        Assert.Equal("session:k", root.GetProperty("extendedProperties").GetProperty("private").GetProperty("md_key").GetString());
+        Assert.Equal("1", root.GetProperty("extendedProperties").GetProperty("private").GetProperty("uni_dashboard_managed").GetString());
+        Assert.Equal("session:k", root.GetProperty("extendedProperties").GetProperty("private").GetProperty("uni_dashboard_key").GetString());
         Assert.Equal("Europe/Vienna", root.GetProperty("start").GetProperty("timeZone").GetString());
         Assert.StartsWith("2099-02-03T09:00:00", root.GetProperty("start").GetProperty("dateTime").GetString());
         Assert.True(r.Managed);
@@ -674,7 +674,7 @@ public class GoogleCalendarClientTests
         var h = new Handler((req, n) => n == 1
             ? Json(HttpStatusCode.OK, """{"items":[{"id":"a","summary":"One","start":{"date":"2099-03-01"},"end":{"date":"2099-03-02"},"etag":"\"1\""}],"nextPageToken":"P2"}""")
             : Json(HttpStatusCode.OK, """{"items":[{"id":"b","summary":"Two","status":"cancelled","start":{"dateTime":"2099-03-02T10:00:00+01:00"},"end":{"dateTime":"2099-03-02T11:00:00+01:00"}},""" +
-                                       """{"id":"c","summary":"Three","start":{"dateTime":"2099-03-03T10:00:00+01:00"},"end":{"dateTime":"2099-03-03T11:00:00+01:00"},"extendedProperties":{"private":{"md_managed":"1","md_key":"k"}}}]}"""));
+                                       """{"id":"c","summary":"Three","start":{"dateTime":"2099-03-03T10:00:00+01:00"},"end":{"dateTime":"2099-03-03T11:00:00+01:00"},"extendedProperties":{"private":{"uni_dashboard_managed":"1","uni_dashboard_key":"k"}}}]}"""));
         var list = await Client(h).ListEventsAsync("cal@x.com", "Cal", new DateTimeOffset(2099, 3, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2099, 4, 1, 0, 0, 0, TimeSpan.Zero), default);
         Assert.Equal(3, list.Count);
         Assert.Contains("pageToken=P2", h.Calls[1].Req.RequestUri!.Query);
@@ -692,7 +692,7 @@ public class GoogleCalendarClientTests
         var h = new Handler((_, _) => Json(HttpStatusCode.OK, """{"items":[]}"""));
         await Client(h).ListManagedEventsAsync("main", "Main", default);
         var q = Uri.UnescapeDataString(h.Calls.Single().Req.RequestUri!.Query);
-        Assert.Contains("privateExtendedProperty=md_managed=1", q);
+        Assert.Contains("privateExtendedProperty=uni_dashboard_managed=1", q);
     }
 
     [Fact]

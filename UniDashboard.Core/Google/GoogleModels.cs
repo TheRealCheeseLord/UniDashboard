@@ -22,7 +22,7 @@ public record GoogleCalendarInfo(string Id, string Name, string AccessRole, bool
 public record GoogleEventData(string Id, string Summary, string? Location, string Description, DateTimeOffset Start, DateTimeOffset End, bool AllDay,
     string? SourceUrl, string ItemKey, string ItemHash)
 {
-    public const string MarkerManaged = "md_managed", MarkerKey = "md_key", MarkerHash = "md_hash";
+    public const string MarkerManaged = "uni_dashboard_managed", MarkerKey = "uni_dashboard_key", MarkerHash = "uni_dashboard_hash";
 
     public static GoogleEventData From(ExportItem item) => new(ExportIds.GoogleEventId(item.Key), item.Title, item.Location, item.Description,
         item.Start, item.End, item.AllDay, item.Url, item.Key, item.Hash);
@@ -40,7 +40,7 @@ public interface IGoogleCalendar
     Task<RemoteEvent> InsertAsync(string calendarId, string calendarName, GoogleEventData e, CancellationToken ct = default);
     /// <exception cref="GooglePreconditionException">The event changed since <paramref name="ifMatchEtag"/>.</exception>
     /// <exception cref="GoogleNotFoundException"/>
-    Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData e, string? ifMatchEtag, CancellationToken ct = default);
+    Task<RemoteEvent> PatchAsync(string calendarId, string calendarName, string eventId, GoogleEventData e, string? ifMatchEtag, CancellationToken ct = default, bool restore = false);
     Task DeleteAsync(string calendarId, string eventId, string? ifMatchEtag, CancellationToken ct = default);
 }
 
