@@ -1,4 +1,4 @@
-# Releasing
+﻿# Releasing
 
 How a new version gets from this repository to your friends' machines.
 
@@ -20,6 +20,8 @@ installed app (≤ once a day) ◄── asks the GitHub API for the latest rele
    ```
 
 3. The *Release* workflow (`.github/workflows/release.yml`) runs the tests, builds `UniDashboard-Setup-0.2.0.exe` plus its `.sha256`, and creates the GitHub Release with auto-generated notes. Edit the notes on GitHub afterwards if you want something friendlier: they are shown in the app's update banner.
+
+After a release, bump the default in Directory.Build.props to that version so local builds do not look older than what is published.
 
 The version number comes **from the tag** (`v0.2.0` → `0.2.0`) and overrides the default in `Directory.Build.props`. Tags with a suffix (`v0.3.0-rc1`) become *pre-releases*, which the in-app updater ignores, so you can test an installer by hand without updating anyone.
 
