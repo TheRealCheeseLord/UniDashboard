@@ -30,6 +30,7 @@ public class AssignmentRow
 public sealed partial class AssignmentsPage : Page
 {
     static App A => App.Current;
+    static readonly System.Globalization.CultureInfo De = System.Globalization.CultureInfo.GetCultureInfo("de-AT");
     readonly List<ListView> _lists = [];
     Assignment? _current;
     long? _showOnLoad;
@@ -62,68 +63,129 @@ public sealed partial class AssignmentsPage : Page
         return d >= TimeSpan.Zero ? $"in {span}" : $"{span} ago";
     }
 
-    Brush DueBrush(Assignment a, DateTimeOffset now)
+    static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+
+    /// <summary>Due-time colour shared by the list and the detail pane: red = overdue / within 24 h, amber = within 3 days, else muted.</summary>
+    static Brush DueBrush(Assignment a, DateTimeOffset now)
     {
-        string key = "TextFillColorSecondaryBrush";
-        if (!a.Submitted && a.DueAt is { } due)
-        {
-            if (due < now) key = "SystemFillColorCriticalBrush";
-            else if (due - now <= TimeSpan.FromHours(24)) key = "SystemFillColorCriticalBrush";
-            else if (due - now <= TimeSpan.FromDays(3)) key = "SystemFillColorCautionBrush";
-        }
-        return (Brush)Application.Current.Resources[key];
+        if (a.Submitted || a.DueAt is not { } due) return Res("TextFillColorSecondaryBrush");
+        if (due - now <= TimeSpan.FromHours(24)) return Res("SystemFillColorCriticalBrush");
+        if (due - now <= TimeSpan.FromDays(3)) return Res("SystemFillColorCautionBrush");
+        return Res("TextFillColorSecondaryBrush");
     }
+
+    // Collapsed groups survive reloads; Overdue and Submitted start collapsed.
+    readonly HashSet<string> _collapsed = ["Overdue", "Submitted"];
 
     public void Reload()
     {
         var now = DateTimeOffset.Now;
-        var filter = FilterBox.SelectedIndex;
-        var all = A.Db.GetAssignments()
+        var filter = Math.Max(0, FilterBar.Items.IndexOf(FilterBar.SelectedItem));
+        var everything = A.Db.GetAssignments();
+        var all = everything
             .Where(a => filter == 0 || (filter == 1 ? !a.Submitted : a.Submitted))
             .OrderBy(a => a.DueAt ?? DateTimeOffset.MaxValue).ToList();
 
         var todayEnd = new DateTimeOffset(now.Date.AddDays(1), now.Offset);
         var weekEnd = todayEnd.AddDays(6);
-        var groups = new (string Name, bool Expanded, Func<Assignment, bool> Pred)[]
+        var groups = new (string Name, Func<Assignment, bool> Pred)[]
         {
-            ("Overdue", true, a => !a.Submitted && a.DueAt is { } d && d < now),
-            ("Today", true, a => !a.Submitted && a.DueAt is { } d && d >= now && d < todayEnd),
-            ("This week", true, a => !a.Submitted && a.DueAt is { } d && d >= todayEnd && d < weekEnd),
-            ("Later", true, a => !a.Submitted && (a.DueAt is not { } d || d >= weekEnd)),
-            ("Submitted", false, a => a.Submitted),
+            ("Overdue", a => !a.Submitted && a.DueAt is { } d && d < now),
+            ("Today", a => !a.Submitted && a.DueAt is { } d && d >= now && d < todayEnd),
+            ("This week", a => !a.Submitted && a.DueAt is { } d && d >= todayEnd && d < weekEnd),
+            ("Later", a => !a.Submitted && (a.DueAt is not { } d || d >= weekEnd)),
+            ("Submitted", a => a.Submitted),
         };
 
-        var selectedId = _current?.Id;
+        // One quiet line: what needs attention right now.
+        var open = everything.Where(a => !a.Submitted).ToList();
+        var parts = new List<string>();
+        var overdue = open.Count(a => a.DueAt is { } d && d < now);
+        var today = open.Count(a => a.DueAt is { } d && d >= now && d < todayEnd);
+        if (overdue > 0) parts.Add($"{overdue} overdue");
+        if (today > 0) parts.Add($"{today} due today");
+        parts.Add($"{open.Count} open");
+        SummaryText.Text = string.Join("  ·  ", parts);
+
         GroupsPanel.Children.Clear();
         _lists.Clear();
-        foreach (var (name, expanded, pred) in groups)
+        foreach (var (name, pred) in groups)
         {
             var items = all.Where(pred).ToList();
             if (items.Count == 0) continue;
+            var rows = items.Select(a => new AssignmentRow { Model = a, DueText = RelativeDue(a.DueAt, now), DueBrush = DueBrush(a, now) }).ToList();
             var list = new ListView
             {
                 SelectionMode = ListViewSelectionMode.Single,
                 ItemTemplate = (DataTemplate)Resources["RowTemplate"],
-                ItemsSource = items.Select(a => new AssignmentRow
-                {
-                    Model = a, DueText = RelativeDue(a.DueAt, now), DueBrush = DueBrush(a, now),
-                }).ToList(),
+                ItemContainerStyle = (Style)Resources["RowContainerStyle"],
+                ItemsSource = rows,
+                Visibility = _collapsed.Contains(name) ? Visibility.Collapsed : Visibility.Visible,
             };
             list.SelectionChanged += List_SelectionChanged;
             _lists.Add(list);
-            GroupsPanel.Children.Add(new Expander
-            {
-                Header = $"{name} ({items.Count})", IsExpanded = expanded, Content = list,
-                HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            });
-            if (selectedId is { } sid)
-                list.SelectedItem = ((List<AssignmentRow>)list.ItemsSource).FirstOrDefault(r => r.Model.Id == sid);
+            GroupsPanel.Children.Add(GroupHeader(name, items.Count, list));
+            GroupsPanel.Children.Add(list);
         }
+        SelectCurrent();
         var last = A.Settings.LastSync;
         LastSyncText.Text = last is null ? "never synced" : $"last sync {last.Value.ToLocalTime():g}";
     }
 
+    FrameworkElement GroupHeader(string name, int count, ListView list)
+    {
+        var chevron = new FontIcon { Glyph = list.Visibility == Visibility.Visible ? "" : "", FontSize = 10, VerticalAlignment = VerticalAlignment.Center,
+                                     Foreground = Res("TextFillColorSecondaryBrush") };
+        var content = new Grid { ColumnSpacing = 8 };
+        content.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        content.Children.Add(new TextBlock { Text = name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var counter = new TextBlock { Text = count.ToString(), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Foreground = Res("TextFillColorSecondaryBrush") };
+        Grid.SetColumn(counter, 1);
+        content.Children.Add(counter);
+        Grid.SetColumn(chevron, 2);
+        content.Children.Add(chevron);
+
+        var header = new Button
+        {
+            Content = content, Background = new SolidColorBrush(Colors.Transparent), BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 10, 0, 0),
+        };
+        header.Click += (_, _) =>
+        {
+            var show = list.Visibility != Visibility.Visible;
+            list.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            chevron.Glyph = show ? "" : "";
+            if (show) _collapsed.Remove(name); else _collapsed.Add(name);
+        };
+        return header;
+    }
+
     bool _selecting;
+
+    /// <summary>Highlights the open assignment in whichever group holds it (and expands that group).</summary>
+    void SelectCurrent()
+    {
+        _selecting = true;
+        foreach (var list in _lists)
+        {
+            var row = _current is { } c ? ((List<AssignmentRow>)list.ItemsSource).FirstOrDefault(r => r.Model.Id == c.Id) : null;
+            list.SelectedItem = row;
+            if (row is not null && list.Visibility != Visibility.Visible)
+            {
+                var idx = GroupsPanel.Children.IndexOf(list) - 1;   // the header sits right before its list
+                list.Visibility = Visibility.Visible;
+                if (idx >= 0 && GroupsPanel.Children[idx] is Button { Content: Grid g })
+                {
+                    if (g.Children.OfType<FontIcon>().FirstOrDefault() is { } chev) chev.Glyph = "";
+                    if (g.Children.OfType<TextBlock>().FirstOrDefault() is { } t) _collapsed.Remove(t.Text);
+                }
+            }
+        }
+        _selecting = false;
+    }
 
     void List_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -134,7 +196,16 @@ public sealed partial class AssignmentsPage : Page
         ShowDetail(row.Model.Id);
     }
 
-    void FilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) Reload(); }
+    void FilterBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (!IsLoaded) return;
+        // Each tab starts from its own defaults: Submitted is only open by default on the Submitted tab.
+        bool submittedTab = FilterBar.Items.IndexOf(FilterBar.SelectedItem) == 2;
+        _collapsed.Clear();
+        _collapsed.Add("Overdue");
+        if (!submittedTab) _collapsed.Add("Submitted");
+        Reload();
+    }
 
     /// <summary>Deep link (toast click).</summary>
     public void ShowAssignment(long id)
@@ -157,11 +228,34 @@ public sealed partial class AssignmentsPage : Page
 
         DetailTitle.Text = a.Name;
         DetailCourse.Text = a.CourseName;
-        DetailDue.Text = a.DueAt is { } d ? $"Due: {d.ToLocalTime():dddd, d MMMM yyyy HH:mm} ({RelativeDue(d, now)})" : "No due date";
-        DetailStatus.Text = a.Submitted ? "Status: ✅ Submitted" : "Status: Not submitted";
-        DetailGrade.Text = a.Grade is null && a.Feedback is null ? "" : $"Grade: {a.Grade ?? "—"}" + (a.Feedback is null ? "" : $"\nFeedback: {a.Feedback}");
-        DetailGrade.Visibility = DetailGrade.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        DetailAttachments.Text = $"📎 {a.AttachmentCount} attachment{(a.AttachmentCount == 1 ? "" : "s")} (download in Moodle)";
+        if (a.DueAt is { } d)
+        {
+            var local = d.ToLocalTime();
+            DateDow.Text = local.ToString("ddd", De).TrimEnd('.').ToUpperInvariant();
+            DateDay.Text = local.Day.ToString();
+            DateMonth.Text = local.ToString("MMM yyyy", De);
+            DetailDue.Text = $"Due {local.ToString("dddd, d MMMM yyyy", De)} at {local:HH:mm}";
+            DueRelative.Text = "· " + RelativeDue(d, now);
+            DueRelative.Foreground = DueBrush(a, now);
+        }
+        else
+        {
+            DateDow.Text = "";
+            DateDay.Text = "—";
+            DateMonth.Text = "no due date";
+            DetailDue.Text = "No due date";
+            DueRelative.Text = "";
+        }
+        StatusIcon.Glyph = a.Submitted ? "" : "";
+        StatusText.Text = a.Submitted ? "Submitted" : "Not submitted";
+        StatusIcon.Foreground = Res(a.Submitted ? "SystemFillColorSuccessBrush" : "TextFillColorSecondaryBrush");
+        AttachmentsText.Text = $"{a.AttachmentCount} attachment{(a.AttachmentCount == 1 ? "" : "s")}";
+
+        var hasGrade = a.Grade is { Length: > 0 } || a.Feedback is { Length: > 0 };
+        GradeSection.Visibility = hasGrade ? Visibility.Visible : Visibility.Collapsed;
+        DetailGrade.Text = a.Grade is { Length: > 0 } g ? g : "—";
+        DetailFeedback.Text = a.Feedback ?? "";
+        DetailFeedback.Visibility = string.IsNullOrWhiteSpace(a.Feedback) ? Visibility.Collapsed : Visibility.Visible;
         DetailDescription.Text = DocxGenerator.HtmlToPlainText(a.IntroHtml) is { Length: > 0 } t ? t : "(no description)";
         HistoryExpander.IsExpanded = false;
         HistoryList.ItemsSource = null;
@@ -172,6 +266,7 @@ public sealed partial class AssignmentsPage : Page
             A.Db.ClearUnseen(a.Id);  // opening an assignment clears the dot
             Reload();
         }
+        else SelectCurrent();
     }
 
     async void OpenButton_Click(object sender, RoutedEventArgs e)
