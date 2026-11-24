@@ -15,6 +15,17 @@
             <NavigationViewItem Content="Export" Tag="export" Icon="Share" />
             <NavigationViewItem Content="Settings" Tag="settings" Icon="Setting" />
         </NavigationView.MenuItems>
-        <Frame x:Name="ContentFrame" />
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <InfoBar x:Name="UpdateBar" IsOpen="False" IsClosable="True" Severity="Informational" Margin="16,8,16,0">
+                <InfoBar.ActionButton>
+                    <Button x:Name="UpdateInstallButton" Content="Install and restart" Click="UpdateInstall_Click" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+            <Frame x:Name="ContentFrame" Grid.Row="1" />
+        </Grid>
     </NavigationView>
 </Window>

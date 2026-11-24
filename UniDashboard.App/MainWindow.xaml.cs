@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using UniDashboard.Core;
 
 namespace UniDashboard.App;
 
@@ -81,6 +82,32 @@ public sealed partial class MainWindow : Window
             }
         }
         if (_pendingLogin && ContentFrame.Content is SettingsPage sp) { _pendingLogin = false; _ = sp.LoginAsync(); }
+    }
+
+    // ---------- updates
+
+    /// <summary>On startup: look for a newer release (once a day, if enabled) and offer it in a banner. Never installs on its own.</summary>
+    public async Task CheckForUpdateOnStartupAsync()
+    {
+        var s = App.Current.Settings;
+        if (!s.AutoUpdateCheck || DateTimeOffset.Now - s.LastUpdateCheck < TimeSpan.FromHours(24)) return;
+        var update = await App.Current.CheckForUpdateAsync();
+        if (update is not null) ShowUpdateBanner(update);
+    }
+
+    public void ShowUpdateBanner(UniDashboard.Core.Update.UpdateInfo update)
+    {
+        UpdateBar.Title = $"UniDashboard {update.Version.ToString(3)} is available";
+        UpdateBar.Message = $"You have {AppVersion.Text}. Your data stays as it is; the app restarts after the update.";
+        UpdateBar.IsOpen = true;
+    }
+
+    async void UpdateInstall_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateInstallButton.IsEnabled = false;
+        UpdateBar.Message = "Downloading…";
+        var error = await App.Current.InstallUpdateAsync();
+        if (error is not null) { UpdateBar.Severity = InfoBarSeverity.Error; UpdateBar.Message = error; UpdateInstallButton.IsEnabled = true; }
     }
 
     public bool ConsumePendingLogin() { var v = _pendingLogin; _pendingLogin = false; return v; }

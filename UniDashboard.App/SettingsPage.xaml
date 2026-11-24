@@ -34,6 +34,7 @@
             <SelectorBarItem Text="Notifications" Tag="notify" />
             <SelectorBarItem Text="Calendar" Tag="calendar" />
             <SelectorBarItem Text="Documents" Tag="documents" />
+            <SelectorBarItem Text="About &amp; updates" Tag="about" />
         </SelectorBar>
 
         <InfoBar x:Name="Info" Grid.Row="2" IsOpen="False" IsClosable="True" MaxWidth="860" HorizontalAlignment="Left" />
@@ -196,6 +197,37 @@
                             </StackPanel>
                             <TextBlock Style="{StaticResource Hint}"
                                        Text="Placeholders you can use in your own template: {{Title}} {{Course}} {{Author}} {{Matrikel}} {{Date}} {{DueDate}} {{MoodleUrl}} {{Description}}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ===================== ABOUT & UPDATES ===================== -->
+                <StackPanel x:Name="TabAbout" Spacing="12" Visibility="Collapsed">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock x:Name="VersionText" Style="{StaticResource CardTitle}" />
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="Unofficial student tool, not affiliated with the Universität Wien, Moodle or Google. Free software under the GNU GPL v3 or later." />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <HyperlinkButton Content="Releases and release notes" NavigateUri="https://github.com/TheRealCheeseLord/UniDashboard/releases" Padding="0,4" />
+                                <HyperlinkButton Content="Source code" NavigateUri="https://github.com/TheRealCheeseLord/UniDashboard" Padding="8,4" />
+                                <HyperlinkButton Content="License" NavigateUri="https://github.com/TheRealCheeseLord/UniDashboard/blob/main/LICENSE" Padding="8,4" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="New versions are published on GitHub. The app checks at most once a day when it starts and only tells you; it never installs anything without your click. Downloads are verified with a SHA-256 checksum, your data stays untouched, and the app restarts afterwards." />
+                            <ToggleSwitch x:Name="AutoUpdateSwitch" Header="Check for updates automatically" OnContent="On" OffContent="Off" Toggled="AutoUpdateSwitch_Toggled" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="CheckUpdateButton" Content="Check now" Click="CheckUpdate_Click" />
+                                <Button x:Name="InstallUpdateButton" Content="Install and restart" Style="{StaticResource AccentButtonStyle}" Visibility="Collapsed" Click="InstallUpdate_Click" />
+                            </StackPanel>
+                            <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
+                            <TextBlock x:Name="UpdateNotes" Style="{StaticResource Hint}" IsTextSelectionEnabled="True" Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

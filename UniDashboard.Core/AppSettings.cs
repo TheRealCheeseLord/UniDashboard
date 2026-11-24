@@ -28,6 +28,13 @@ public class AppSettings(Database db)
     public string Matrikelnummer { get => Get("matrikelnummer", ""); set => Set("matrikelnummer", value); }
     /// <summary>Hash of credentials the IdP rejected; headless login is not retried with them (avoids account lockout).</summary>
     public string RejectedCredentialHash { get => Get("rejected_cred_hash", ""); set => Set("rejected_cred_hash", value); }
+    /// <summary>Look for a newer GitHub release at startup (at most once a day). Installing always needs your click.</summary>
+    public bool AutoUpdateCheck { get => GetBool("auto_update_check", true); set => SetBool("auto_update_check", value); }
+    public DateTimeOffset LastUpdateCheck
+    {
+        get => long.TryParse(db.GetSetting("last_update_check"), out var v) ? DateTimeOffset.FromUnixTimeSeconds(v) : DateTimeOffset.MinValue;
+        set => Set("last_update_check", value.ToUnixTimeSeconds().ToString());
+    }
     public bool ShowDemoEvents { get => GetBool("show_demo_events", false); set => SetBool("show_demo_events", value); }
     // Exam planner (persisted as JSON)
     public PlanStrategy PlannerStrategy

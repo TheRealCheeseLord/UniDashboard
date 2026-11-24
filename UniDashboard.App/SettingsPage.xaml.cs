@@ -44,6 +44,7 @@ public sealed partial class SettingsPage : Page
         DocxFolderBox.Text = S.DocxFolder;
         BuildCourses();
         BuildNotifyToggles();
+        LoadAbout();
         _loading = false;
     }
 
@@ -102,6 +103,48 @@ public sealed partial class SettingsPage : Page
         TabNotify.Visibility = tag == "notify" ? Visibility.Visible : Visibility.Collapsed;
         TabCalendar.Visibility = tag == "calendar" ? Visibility.Visible : Visibility.Collapsed;
         TabDocuments.Visibility = tag == "documents" ? Visibility.Visible : Visibility.Collapsed;
+        TabAbout.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ---- about & updates
+
+    void LoadAbout()
+    {
+        VersionText.Text = $"UniDashboard {AppVersion.Text}";
+        AutoUpdateSwitch.IsOn = S.AutoUpdateCheck;
+        ShowUpdate(A.PendingUpdate);
+        if (A.PendingUpdate is null && S.LastUpdateCheck > DateTimeOffset.MinValue)
+            UpdateStatus.Text = $"You are up to date (last checked {S.LastUpdateCheck.ToLocalTime():g}).";
+    }
+
+    void ShowUpdate(UniDashboard.Core.Update.UpdateInfo? u)
+    {
+        InstallUpdateButton.Visibility = u is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateNotes.Visibility = u is null || string.IsNullOrWhiteSpace(u.Notes) ? Visibility.Collapsed : Visibility.Visible;
+        if (u is null) return;
+        UpdateStatus.Text = $"Version {u.Version.ToString(3)} is available (you have {AppVersion.Text}).";
+        UpdateNotes.Text = u.Notes;
+    }
+
+    void AutoUpdateSwitch_Toggled(object sender, RoutedEventArgs e) { if (!_loading) S.AutoUpdateCheck = AutoUpdateSwitch.IsOn; }
+
+    async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatus.Text = "Checking…";
+        var u = await A.CheckForUpdateAsync();
+        ShowUpdate(u);
+        if (u is null) UpdateStatus.Text = "You are up to date (or GitHub could not be reached; see the log if this seems wrong).";
+        else A.Window?.ShowUpdateBanner(u);
+        CheckUpdateButton.IsEnabled = true;
+    }
+
+    async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        InstallUpdateButton.IsEnabled = false;
+        UpdateStatus.Text = "Downloading and verifying…";
+        var error = await A.InstallUpdateAsync();
+        if (error is not null) { UpdateStatus.Text = error; InstallUpdateButton.IsEnabled = true; }
     }
 
     void OpenExport_Click(object sender, RoutedEventArgs e) => A.Window?.HandleCommandLine("--export");

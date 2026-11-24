@@ -29,9 +29,41 @@ public partial class App : Application
     public UniDashboard.Core.Google.IGoogleCalendar GoogleApi { get; }
     public UniDashboard.Core.Google.GoogleSyncService GoogleSync { get; }
 
+    // Updates (GitHub releases; verified by SHA-256 before the installer is started)
+    public UniDashboard.Core.Update.UpdateService Updater { get; }
+    public UniDashboard.Core.Update.UpdateInfo? PendingUpdate { get; private set; }
+
+    /// <summary>Asks GitHub for a newer release; remembers the result in <see cref="PendingUpdate"/>.</summary>
+    public async Task<UniDashboard.Core.Update.UpdateInfo?> CheckForUpdateAsync()
+    {
+        PendingUpdate = await Updater.CheckAsync();
+        Settings.LastUpdateCheck = DateTimeOffset.Now;
+        return PendingUpdate;
+    }
+
+    /// <summary>Downloads + verifies the pending installer, starts it and exits. Returns an error text, or null when the installer took over.</summary>
+    public async Task<string?> InstallUpdateAsync()
+    {
+        if (PendingUpdate is null) return "No update is pending.";
+        try
+        {
+            var setup = await Updater.DownloadAsync(PendingUpdate);
+            FileLog.Write("app", $"update: starting installer {setup}");
+            UniDashboard.Core.Update.UpdateService.StartInstaller(setup);
+            Exit();
+            return null;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            FileLog.Write("app", "update failed: " + e);
+            return "The update could not be installed: " + e.Message;
+        }
+    }
+
     public App()
     {
         InitializeComponent();
+        Updater = new UniDashboard.Core.Update.UpdateService(_http, log: m => FileLog.Write("app", m));
 
         // Never let a stray exception take the whole app down silently: log it (the stack goes to logspp-*.log).
         UnhandledException += (_, e) => { FileLog.Write("app", "UNHANDLED (UI): " + e.Exception); e.Handled = true; };
@@ -69,6 +101,7 @@ public partial class App : Application
         var instance = AppInstance.GetCurrent();
         instance.Activated += (_, a) => Window.DispatcherQueue.TryEnqueue(() => HandleActivation(a));
         HandleActivation(instance.GetActivatedEventArgs());
+        _ = Window.CheckForUpdateOnStartupAsync();
     }
 
     void HandleActivation(AppActivationArguments a)

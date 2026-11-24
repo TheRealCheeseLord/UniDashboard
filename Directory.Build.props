@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- Single version for App, Agent and installer. CI overrides it from the release tag: -p:Version=1.2.3 -->
+    <Version>0.1.0</Version>
+    <Authors>UniDashboard contributors</Authors>
+    <Product>UniDashboard</Product>
+    <Copyright>GPL-3.0-or-later</Copyright>
+    <!-- No "+commit" suffix in InformationalVersion: the updater compares plain x.y.z versions. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>
