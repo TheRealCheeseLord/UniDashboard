@@ -92,7 +92,8 @@ public static class IcsWriter
 
     static string Utc(DateTimeOffset t) => t.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
 
-    static string Date(DateTimeOffset t) => t.ToLocalTime().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+    /// <summary>All-day dates are Vienna dates (the university's calendar), not the dates of whatever timezone this PC is set to.</summary>
+    static string Date(DateTimeOffset t) => UniDashboard.Core.Google.ViennaTime.DateString(t).Replace("-", "");
 
     /// <summary>Folds a content line at 75 octets (never splitting a UTF-8 sequence); continuation lines start with one space.</summary>
     static void Fold(StringBuilder sb, string line)
