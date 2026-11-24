@@ -1,4 +1,4 @@
-# UniDashboard
+﻿# UniDashboard
 
 **A native Windows dashboard for University of Vienna students.** It pulls your Moodle assignments, your u:space course registrations and your u:find timetables into one fast desktop app. It tells you when something changes, and it can mirror your timetable into Google Calendar or an `.ics` file without ever creating duplicates.
 
@@ -43,16 +43,33 @@
 
 *All screenshots use fake demo data* (see [Development](#development)).
 
-## Requirements
+## Install
 
-- Windows 10 (1809) or Windows 11, x64
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (only to build; the installed app is self-contained)
-- Google Chrome or Microsoft Edge (Chrome is tried first; used for the university single sign-on)
-- A University of Vienna u:account
+### Installer (recommended)
 
-## Install (build from source)
+1. Download `UniDashboard-Setup-x.y.z.exe` from the [latest release](https://github.com/TheRealCheeseLord/UniDashboard/releases/latest).
+2. Run it. It installs for your user only (no admin rights) and adds a Start Menu entry.
+3. **Windows SmartScreen** will say *"Windows protected your PC"* because the installer is not code-signed yet (certificates cost money; free open-source signing is planned). Click **More info → Run anyway**.
 
-There is no installer yet; one script builds and installs the app for your user.
+Want to be sure the file is the one built by this repository? Compare its checksum with the `.sha256` file next to it on the release page:
+
+```powershell
+(Get-FileHash .\UniDashboard-Setup-x.y.z.exe -Algorithm SHA256).Hash
+```
+
+Requirements: Windows 10 (1809) or Windows 11, x64, and Google Chrome or Microsoft Edge (for the university single sign-on; Chrome is tried first).
+
+### Updates
+
+The app checks GitHub for a newer release when it starts (at most once a day) and shows a banner; one click downloads, verifies the checksum, installs and restarts. Nothing is ever installed without your click, and your data stays untouched. Switch the check off, or check manually, under **Settings → About & updates**. You can also simply run a newer installer over the old one.
+
+### Uninstall
+
+*Settings → Apps → Installed apps → UniDashboard*. It stops the background task and asks whether to delete your data (database, saved logins, logs). Choose *No* to keep it for a later reinstall.
+
+### Build from source
+
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Git.
 
 ```powershell
 git clone https://github.com/TheRealCheeseLord/UniDashboard.git
@@ -60,10 +77,7 @@ cd UniDashboard
 .\publish.ps1
 ```
 
-`publish.ps1` publishes the app and the background agent (self-contained, win-x64) to `%LOCALAPPDATA%\UniDashboard\bin`. It stops a running copy first, so you can run it again at any time to update. Start the app from `%LOCALAPPDATA%\UniDashboard\bin\UniDashboard.App.exe` (pin it to the taskbar or create a shortcut).
-
-**Uninstall:** turn off *Settings → Sync → Sync in the background*, delete `%LOCALAPPDATA%\UniDashboard`, and remove the `UniDashboard/univie` entry from the Windows Credential Manager if you saved your password.
-
+`publish.ps1` builds the app and the background agent (self-contained, win-x64) into `%LOCALAPPDATA%\UniDashboard\bin`, the same place the installer uses. It stops a running copy first, so you can run it again at any time to update. To build the installer yourself see [docs/releasing.md](docs/releasing.md).
 ## First run
 
 1. Open **Settings → Accounts**, enter your Moodle address and press **Log in**. Your browser opens for the university login; the app keeps the session.
@@ -79,6 +93,7 @@ More detail in [docs/getting-started.md](docs/getting-started.md).
 - [Features](docs/features.md): what every page does
 - [Google Calendar setup](docs/google-calendar-setup.md): one-time OAuth client setup and the sync safety rules
 - [Architecture](docs/architecture.md): projects, data flow, storage, security
+- [Releasing](docs/releasing.md): how installers and updates are built and published
 - [Original design notes](docs/design-notes.md): the first (Moodle-only) spec, kept for history
 
 ## Privacy and security
@@ -107,4 +122,4 @@ Setting the environment variable `UNIDASHBOARD_DATA_DIR` makes the app use a dif
 
 ## License
 
-Not licensed yet: all rights reserved for now. Please ask before reusing the code.
+UniDashboard is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License v3.0 or later**. See [LICENSE](LICENSE). It comes with no warranty.

@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 ```
 UniDashboard.slnx
@@ -60,6 +60,10 @@ dotnet test UniDashboard.Core.Tests
 ```
 
 Covers change detection fixtures, session/exam differs, the exam planner, `.ics` output, the sync planner's safety properties, and the Google client against a fake HTTP layer.
+
+## Updates and releases
+
+Releases are cut by pushing a version tag: GitHub Actions builds an Inno Setup installer (`installer/`) and attaches it, with its SHA-256, to a GitHub Release. The installed app asks the GitHub API for the latest release once a day (`Core/Update/UpdateService.cs`), shows a banner, and on request downloads, verifies and silently runs the installer, which upgrades in place and relaunches the app. Details in [releasing.md](releasing.md).
 
 ## Demo data and screenshots
 

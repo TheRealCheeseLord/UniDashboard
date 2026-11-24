@@ -1,4 +1,4 @@
-# Features
+﻿# Features
 
 ## Assignments
 
@@ -71,3 +71,9 @@ Toast kinds include: new / changed assignments, deadline reminders, new enrolmen
 `{{Title}}` `{{Course}}` `{{Author}}` `{{Matrikel}}` `{{Date}}` `{{DueDate}}` `{{MoodleUrl}}` `{{Description}}`
 
 Nothing is cached: the file is generated on demand and saved only where you choose.
+
+## Updates
+
+![About and updates](screenshots/settings-about.png)
+
+**Settings → About & updates** shows the installed version and lets you check for a newer release. The app also checks once a day at startup (switchable) and shows a banner; installing always needs your click, verifies a SHA-256 checksum first and keeps all your data. See [releasing](releasing.md) for how updates are published.

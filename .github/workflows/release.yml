@@ -1,0 +1,53 @@
+name: Release
+
+# Push a tag like v0.2.0 and this builds the installer and publishes a GitHub Release with it.
+# A tag with a suffix (v0.2.0-rc1) becomes a pre-release, which the in-app updater ignores.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test UniDashboard.Core.Tests -c Release
+
+      - name: Work out the version
+        id: v
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          "version=$($env:TAG.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+
+      - name: Make sure Inno Setup is available
+        shell: pwsh
+        run: |
+          $found = (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -or (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")
+          if (-not $found) { choco install innosetup -y --no-progress }
+
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build-installer.ps1 -Version ${{ steps.v.outputs.version }}
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          $flags = @()
+          if ($env:VERSION -like '*-*') { $flags += '--prerelease' }
+          gh release create $env:TAG `
+            "artifacts/UniDashboard-Setup-$($env:VERSION).exe" "artifacts/UniDashboard-Setup-$($env:VERSION).exe.sha256" `
+            --title "UniDashboard $($env:VERSION)" --generate-notes @flags

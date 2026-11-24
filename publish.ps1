@@ -20,5 +20,8 @@ foreach ($proj in 'UniDashboard.App', 'UniDashboard.Agent') {
     dotnet publish "$PSScriptRoot\$proj" -c Release -r win-x64 -p:Platform=x64 --self-contained -o $dest
     if ($LASTEXITCODE -ne 0) { throw "publish failed: $proj" }
 }
+# Playwright ships Node runtimes for every OS (~570 MB); only the Windows one is ever used.
+Get-ChildItem "$dest\.playwright\node" -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -ne 'win32_x64' } | Remove-Item -Recurse -Force
 Write-Host "Installed to $dest"
 Write-Host "Start: $dest\UniDashboard.App.exe  (enable the background agent in Settings > Sync)"

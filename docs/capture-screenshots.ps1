@@ -92,5 +92,6 @@ try {
     Start-Process $Exe -ArgumentList '--settings=sync' -Wait; Start-Sleep -Seconds 1
     Shot 'settings-sync' '' 1
     ClickByName 'Notifications'; Shot 'settings-notifications' '' 1
+    ClickByName 'About & updates'; Shot 'settings-about' '' 1
 }
 finally { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; Remove-Item Env:\UNIDASHBOARD_DATA_DIR }

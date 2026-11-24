@@ -1,8 +1,12 @@
-# Getting started
+﻿# Getting started
 
-## 1. Build and install
+## 1. Install
 
-Prerequisites: Windows 10 (1809) / 11 x64, the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), Git, and Chrome or Edge.
+**Installer (recommended).** Download `UniDashboard-Setup-x.y.z.exe` from the [latest release](https://github.com/TheRealCheeseLord/UniDashboard/releases/latest) and run it. It installs per user into `%LOCALAPPDATA%\UniDashboard\bin` (no admin rights) and adds a Start Menu entry. Because the installer is not code-signed yet, Windows SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. Verify the download against the `.sha256` file on the release page if you like.
+
+Prerequisites: Windows 10 (1809) / 11 x64 and Chrome or Edge.
+
+**From source.** Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Git:
 
 ```powershell
 git clone https://github.com/TheRealCheeseLord/UniDashboard.git
@@ -10,10 +14,17 @@ cd UniDashboard
 .\publish.ps1
 ```
 
-The script builds `UniDashboard.App` and `UniDashboard.Agent` as self-contained x64 apps into `%LOCALAPPDATA%\UniDashboard\bin`. Nothing is installed system-wide and no admin rights are needed. To update later: `git pull` and run `.\publish.ps1` again (it closes a running copy first).
+This installs to the same folder. Run it again after `git pull` to update.
 
-Start `%LOCALAPPDATA%\UniDashboard\bin\UniDashboard.App.exe`.
+Start UniDashboard from the Start Menu (or `%LOCALAPPDATA%\UniDashboard\bin\UniDashboard.App.exe`).
 
+### Updating
+
+The app looks for a newer release when it starts (at most once a day) and shows a banner. **Install and restart** downloads the new installer, checks its SHA-256, installs it over the old version and reopens the app; your data and settings are kept. Control this under **Settings → About & updates** (switch off, or *Check now*). Running a newer installer manually works too.
+
+### Uninstalling
+
+*Settings → Apps → Installed apps → UniDashboard*. It removes the background task and asks whether to also delete your data (database, saved logins, logs); answer *No* to keep it.
 ## 2. Connect Moodle
 
 1. **Settings → Accounts → Moodle address**: the address of your Moodle (for example the University of Vienna Moodle).
