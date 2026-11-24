@@ -12,6 +12,8 @@ public sealed partial class SettingsPage : Page
 {
     static App A => App.Current;
     static AppSettings S => A.Settings;
+    /// <summary>Optional tab requested via "--settings=notify" etc.</summary>
+    public static string? RequestedTab { get; set; }
     bool _loading = true;
 
     public SettingsPage()
@@ -20,6 +22,7 @@ public sealed partial class SettingsPage : Page
         Loaded += async (_, _) =>
         {
             LoadValues();
+            if (RequestedTab is { } t) { foreach (SelectorBarItem it in Tabs.Items) if ((string?)it.Tag == t) Tabs.SelectedItem = it; RequestedTab = null; }
             if (A.Window?.ConsumePendingLogin() == true) await LoginAsync();
         };
     }
@@ -28,7 +31,7 @@ public sealed partial class SettingsPage : Page
     {
         _loading = true;
         BaseUrlBox.Text = S.MoodleBaseUrl;
-        LoginStatus.Text = A.Auth.CurrentToken() is null ? "Not logged in" : "Token stored";
+        LoginStatus.Text = A.Auth.CurrentToken() is null ? "Not logged in" : "● Logged in";
         if (CredentialStore.Load() is { } c) UserBox.Text = c.User;
         IntervalBox.Value = S.SyncIntervalMinutes;
         ReminderBox.Value = S.ReminderHours;
@@ -60,39 +63,68 @@ public sealed partial class SettingsPage : Page
 
     void BuildNotifyToggles()
     {
-        NotifyPanel.Children.Clear();
-        void Add(string label, bool on, Action<bool> set)
+        foreach (var panel in new[] { NotifyAssignments, NotifyCourses, NotifyExams, NotifySystem }) panel.Children.Clear();
+
+        void Add(StackPanel panel, string label, bool on, Action<bool> set, string? hint = null)
         {
-            var t = new ToggleSwitch { Header = label, IsOn = on };
-            t.Toggled += (_, _) => { if (!_loading) set(t.IsOn); };
-            NotifyPanel.Children.Add(t);
+            var cb = new CheckBox { Content = hint is null ? label : $"{label}  —  {hint}", IsChecked = on, MinWidth = 0 };
+            cb.Click += (_, _) => { if (!_loading) set(cb.IsChecked == true); };
+            panel.Children.Add(cb);
         }
-        Add("New assignment", S.Notify(ChangeKind.New), v => S.SetNotify(ChangeKind.New, v));
-        Add("Due date changed", S.Notify(ChangeKind.DueDateChanged), v => S.SetNotify(ChangeKind.DueDateChanged, v));
-        Add("Description changed", S.Notify(ChangeKind.DescriptionChanged), v => S.SetNotify(ChangeKind.DescriptionChanged, v));
-        Add("Grade / feedback", S.Notify(ChangeKind.GradeOrFeedback), v => S.SetNotify(ChangeKind.GradeOrFeedback, v));
-        Add("Attachments changed (default: silent)", S.Notify(ChangeKind.AttachmentsChanged), v => S.SetNotify(ChangeKind.AttachmentsChanged, v));
-        Add("Submitted status (default: silent)", S.Notify(ChangeKind.Submitted), v => S.SetNotify(ChangeKind.Submitted, v));
-        Add("Due reminder", S.NotifyDueReminder, v => S.NotifyDueReminder = v);
-        Add("Login required", S.NotifyLoginRequired, v => S.NotifyLoginRequired = v);
+
+        // Assignments
+        Add(NotifyAssignments, "New assignment", S.Notify(ChangeKind.New), v => S.SetNotify(ChangeKind.New, v));
+        Add(NotifyAssignments, "Due date changed", S.Notify(ChangeKind.DueDateChanged), v => S.SetNotify(ChangeKind.DueDateChanged, v));
+        Add(NotifyAssignments, "Description changed", S.Notify(ChangeKind.DescriptionChanged), v => S.SetNotify(ChangeKind.DescriptionChanged, v));
+        Add(NotifyAssignments, "Grade or feedback", S.Notify(ChangeKind.GradeOrFeedback), v => S.SetNotify(ChangeKind.GradeOrFeedback, v));
+        Add(NotifyAssignments, "Attachments changed", S.Notify(ChangeKind.AttachmentsChanged), v => S.SetNotify(ChangeKind.AttachmentsChanged, v), "off by default");
+        Add(NotifyAssignments, "Submission status changed", S.Notify(ChangeKind.Submitted), v => S.SetNotify(ChangeKind.Submitted, v), "off by default");
+        Add(NotifyAssignments, "Deadline reminder", S.NotifyDueReminder, v => S.NotifyDueReminder = v, "see “Sync” for how early");
+
+        // Courses, lectures and exams (the app's own list, split by what the entry is about)
         foreach (var (kind, label, _) in MoodleDashboard.Core.Univie.CourseKinds.All)
         {
             var k = kind;
-            Add(label, S.NotifyCourse(k), v => S.SetNotifyCourse(k, v));
+            var panel = k.StartsWith("Exam", StringComparison.Ordinal) ? NotifyExams : NotifyCourses;
+            Add(panel, label, S.NotifyCourse(k), v => S.SetNotifyCourse(k, v), k == MoodleDashboard.Core.Univie.CourseKinds.Info ? "off by default" : null);
         }
+
+        // App
+        Add(NotifySystem, "Login required again", S.NotifyLoginRequired, v => S.NotifyLoginRequired = v, "when the background agent cannot sign in on its own");
     }
+
+    // ---- tabs
+    void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var tag = Tabs.SelectedItem?.Tag as string;
+        TabAccounts.Visibility = tag == "accounts" ? Visibility.Visible : Visibility.Collapsed;
+        TabSync.Visibility = tag == "sync" ? Visibility.Visible : Visibility.Collapsed;
+        TabNotify.Visibility = tag == "notify" ? Visibility.Visible : Visibility.Collapsed;
+        TabCalendar.Visibility = tag == "calendar" ? Visibility.Visible : Visibility.Collapsed;
+        TabDocuments.Visibility = tag == "documents" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void OpenExport_Click(object sender, RoutedEventArgs e) => A.Window?.HandleCommandLine("--export");
+
+    void SetAllCourses(bool enabled)
+    {
+        foreach (var c in A.Db.GetCourses()) A.Db.SetCourseEnabled(c.Id, enabled);
+        BuildCourses();
+    }
+    void SelectAllCourses_Click(object sender, RoutedEventArgs e) => SetAllCourses(true);
+    void SelectNoCourses_Click(object sender, RoutedEventArgs e) => SetAllCourses(false);
 
     // ---- login
     public async Task LoginAsync()
     {
         LoginButton.IsEnabled = false;
         Busy.IsActive = true;
-        LoginStatus.Text = "Waiting for login in Edge…";
+        LoginStatus.Text = "Waiting for you to log in in the browser window…";
         try
         {
             await Task.Run(() => A.Auth.LoginAsync(headless: false));
             S.UserId = 0;
-            LoginStatus.Text = "Logged in";
+            LoginStatus.Text = "● Logged in";
             Show("Login successful.", InfoBarSeverity.Success);
         }
         catch (Exception ex)
