@@ -6,6 +6,7 @@
     <RootNamespace>UniDashboard.App</RootNamespace>
     <AssemblyName>UniDashboard.App</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -18,6 +19,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- also shipped next to the exe: the window (title bar) icon is loaded from this file at startup -->
+    <Content Include="Assets\AppIcon.ico" Link="AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\UniDashboard.Core\UniDashboard.Core.csproj" />
   </ItemGroup>

@@ -14,6 +14,8 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Title = "UniDashboard";
+        var icon = Path.Combine(AppContext.BaseDirectory, "AppIcon.ico");
+        if (File.Exists(icon)) AppWindow.SetIcon(icon);   // title bar + taskbar/Alt-Tab while running
         ExtendsContentIntoTitleBar = false;
         AppWindow.Resize(new(1180, 780));   // size used when un-maximised
         if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p) p.Maximize();

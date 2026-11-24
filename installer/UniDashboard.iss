@@ -33,6 +33,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 LicenseFile=..\LICENSE
+SetupIconFile=..\UniDashboard.App\Assets\AppIcon.ico
 UninstallDisplayIcon={app}\UniDashboard.App.exe
 CloseApplications=yes
 RestartApplications=no

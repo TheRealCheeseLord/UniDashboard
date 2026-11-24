@@ -13,6 +13,7 @@
     <SelfContained>true</SelfContained>
     <UseWinUI>false</UseWinUI>
     <AssemblyName>UniDashboard.Agent</AssemblyName>
+    <ApplicationIcon>..\UniDashboard.App\Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\UniDashboard.Core\UniDashboard.Core.csproj" />
