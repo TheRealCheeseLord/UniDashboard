@@ -91,7 +91,7 @@ More detail in [docs/getting-started.md](docs/getting-started.md).
 ## Development
 
 ```powershell
-dotnet build UniDashboard.slnx -p:Platform=x64
+dotnet build UniDashboard.slnx
 dotnet test UniDashboard.Core.Tests          # 180+ unit tests, no network needed
 ```
 
