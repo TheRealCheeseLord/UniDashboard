@@ -47,7 +47,7 @@ public static class IcsWriter
             if (!string.IsNullOrWhiteSpace(i.Description)) Line("DESCRIPTION:" + Escape(i.Description));
             if (!string.IsNullOrWhiteSpace(i.Url)) Line("URL:" + i.Url);
             Line("CATEGORIES:" + (i.Kind == ExportKind.Exam ? "Exam" : "Uni"));
-            Line("X-MOODLEDASHBOARD-KEY:" + Escape(i.Key));
+            Line("X-UNIDASHBOARD-KEY:" + Escape(i.Key));
             if (alarmMinutes > 0 && !i.AllDay)
             {
                 Line("BEGIN:VALARM");

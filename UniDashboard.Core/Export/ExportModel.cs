@@ -36,7 +36,7 @@ public static class ExportIds
     static byte[] Sha1(string key) => SHA1.HashData(Encoding.UTF8.GetBytes("md-export|" + key));
 
     /// <summary>iCalendar UID: stable per item, so re-importing the same file updates instead of duplicating.</summary>
-    public static string Uid(string key) => "md-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32].ToLowerInvariant() + "@moodledashboard";
+    public static string Uid(string key) => "md-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32].ToLowerInvariant() + "@unidashboard";
 
     /// <summary>Google Calendar event id: base32hex (a–v, 0–9), 5–1024 chars, deterministic → creation is idempotent.</summary>
     public static string GoogleEventId(string key)

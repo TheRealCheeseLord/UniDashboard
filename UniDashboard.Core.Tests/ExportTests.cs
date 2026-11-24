@@ -63,7 +63,7 @@ public class IcsWriterTests
         var b = Unfold(IcsWriter.Write([Item("session:b")], _ => 0, Now)).Single(l => l.StartsWith("UID:"));
         Assert.Equal(a1, a2);
         Assert.NotEqual(a1, b);
-        Assert.EndsWith("@moodledashboard", a1);
+        Assert.EndsWith("@unidashboard", a1);
     }
 
     [Fact]
