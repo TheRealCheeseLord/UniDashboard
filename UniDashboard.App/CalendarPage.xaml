@@ -1,0 +1,39 @@
+<Page
+    x:Class="UniDashboard.App.CalendarPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="24,16,24,12" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="Today" Click="Today_Click" />
+                <Button Content="&#xE76B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="Prev_Click"
+                        ToolTipService.ToolTip="Previous" />
+                <Button Content="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Click="Next_Click"
+                        ToolTipService.ToolTip="Next" />
+            </StackPanel>
+            <TextBlock x:Name="TitleText" Grid.Column="1" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <ToggleButton x:Name="ExamsToggle" Content="Exams" Click="ExamsToggle_Click"
+                              ToolTipService.ToolTip="Show exam dates and registration windows" />
+                <ComboBox x:Name="ViewBox" SelectedIndex="1" MinWidth="110" SelectionChanged="ViewBox_SelectionChanged">
+                    <ComboBoxItem Content="Day" />
+                    <ComboBoxItem Content="Week" />
+                    <ComboBoxItem Content="Month" />
+                </ComboBox>
+            </StackPanel>
+        </Grid>
+
+        <!-- Built in code: sticky day header + meta row above a scrolling time grid (or the month grid) -->
+        <Grid x:Name="Body" Grid.Row="1" />
+    </Grid>
+</Page>

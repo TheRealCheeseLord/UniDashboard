@@ -1,4 +1,4 @@
-# MoodleDashboard — Spec
+# UniDashboard — Spec
 
 A lean, Windows-native dashboard for Moodle (University of Vienna) assignments. It is the "lite" version of a bigger Go/Tauri project, but a **fully standalone codebase** with no shared code.
 It runs on one personal Windows 11 machine only.
@@ -22,7 +22,7 @@ It runs on one personal Windows 11 machine only.
 ## Stack
 
 - .NET 10 (LTS), C#
-- WinUI 3 (Windows App SDK), **unpackaged**, self-contained, installed to `%LOCALAPPDATA%\MoodleDashboard`
+- WinUI 3 (Windows App SDK), **unpackaged**, self-contained, installed to `%LOCALAPPDATA%\UniDashboard`
 - `Microsoft.Playwright` (use `Channel = "msedge"`, so no browser download is needed)
 - `Microsoft.Data.Sqlite` (WAL mode)
 - `DocumentFormat.OpenXml` for .docx generation
@@ -34,13 +34,13 @@ It runs on one personal Windows 11 machine only.
 ## Solution layout
 
 ```
-MoodleDashboard.sln
-├─ MoodleDashboard.Core    class library: all logic (auth, API, storage, diff, docx, notification rules)
-├─ MoodleDashboard.App     WinUI 3 dashboard
-└─ MoodleDashboard.Agent   headless console exe: one sync pass + toasts, then exit
+UniDashboard.sln
+├─ UniDashboard.Core    class library: all logic (auth, API, storage, diff, docx, notification rules)
+├─ UniDashboard.App     WinUI 3 dashboard
+└─ UniDashboard.Agent   headless console exe: one sync pass + toasts, then exit
 ```
 
-The App and the Agent both reference Core. Both read from and write to the same SQLite DB at `%LOCALAPPDATA%\MoodleDashboard\data.db`.
+The App and the Agent both reference Core. Both read from and write to the same SQLite DB at `%LOCALAPPDATA%\UniDashboard\data.db`.
 
 ## Core
 
@@ -50,7 +50,7 @@ The App and the Agent both reference Core. Both read from and write to the same 
   2. Complete the univie SSO login
   3. Catch the `moodlemobile://token=...` redirect (intercept the navigation/request)
   4. Base64-decode it → `signature:::token[:::privatetoken]`
-- Store the token with DPAPI (`ProtectedData`, CurrentUser scope) in `%LOCALAPPDATA%\MoodleDashboard\token.bin`
+- Store the token with DPAPI (`ProtectedData`, CurrentUser scope) in `%LOCALAPPDATA%\UniDashboard\token.bin`
 - Credentials: Windows Credential Manager (or interactive login only)
 - Re-authenticate only when a call returns `errorcode: invalidtoken`
 - **The Agent never shows a browser.** If headless login fails (e.g. MFA), the Agent sends a toast "Moodle login required" → opens the App, which runs Playwright headed.
@@ -105,12 +105,12 @@ settings(key PK, value)
 - **No caching or storage of output.** Generate on demand, show a `FileSavePicker` (default: Downloads, filename `{Course} - {Assignment}.docx`), save the file, done
 - Template path is a setting. **TODO:** the template comes from the main project (location unknown — search that repo for `.docx/.dotx`, `docxtpl`, `python-docx`, `unioffice`, `go-docx`, `go:embed`). If that project builds the document in code, make a placeholder `.docx` from one generated output instead of porting the code.
 
-## Agent (`MoodleDashboard.Agent.exe`)
+## Agent (`UniDashboard.Agent.exe`)
 - Started by Task Scheduler every N minutes (default 30), plus at logon
 - The task must be "Run only when user is logged on" (otherwise toasts don't show)
 - Single instance via a named mutex; does one sync pass → evaluates notification rules → sends toasts → exits
 - Toast click → activates the App with the assignment id (deep link to the detail pane)
-- Logs to `%LOCALAPPDATA%\MoodleDashboard\logs\` (rolling, small)
+- Logs to `%LOCALAPPDATA%\UniDashboard\logs\` (rolling, small)
 
 ## App (WinUI 3)
 Lean, modern Fluent look: Mica backdrop, `NavigationView` with **Assignments** and **Settings**. The app works on its own; it does not need the agent to run.

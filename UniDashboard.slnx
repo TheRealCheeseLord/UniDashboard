@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="UniDashboard.Agent/UniDashboard.Agent.csproj" />
+  <Project Path="UniDashboard.App/UniDashboard.App.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="UniDashboard.Core.Tests/UniDashboard.Core.Tests.csproj" />
+  <Project Path="UniDashboard.Core/UniDashboard.Core.csproj" />
+  <Project Path="UniDashboard.Smoke/UniDashboard.Smoke.csproj" />
+</Solution>

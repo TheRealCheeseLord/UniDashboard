@@ -1,0 +1,90 @@
+<Page
+    x:Class="UniDashboard.App.AssignmentsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:UniDashboard.App">
+    <Page.Resources>
+        <DataTemplate x:Key="RowTemplate" x:DataType="local:AssignmentRow">
+            <Grid Padding="4,8" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Ellipse Width="8" Height="8" Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                         VerticalAlignment="Center" Visibility="{x:Bind UnseenVisibility}" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                    <TextBlock Text="{x:Bind Course}" TextTrimming="CharacterEllipsis" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{x:Bind DueText}" Foreground="{x:Bind DueBrush}" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Text="✅" Visibility="{x:Bind SubmittedVisibility}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid ColumnSpacing="16" Padding="24,16,24,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="430" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: list -->
+        <Grid RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button x:Name="SyncButton" Content="Sync now" Style="{StaticResource AccentButtonStyle}" Click="SyncButton_Click" />
+                <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" />
+                <TextBlock x:Name="LastSyncText" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <ComboBox x:Name="FilterBox" SelectedIndex="0" SelectionChanged="FilterBox_SelectionChanged" MinWidth="110">
+                    <ComboBoxItem Content="All" />
+                    <ComboBoxItem Content="Open" />
+                    <ComboBoxItem Content="Submitted" />
+                </ComboBox>
+            </StackPanel>
+            <InfoBar x:Name="Info" Grid.Row="1" IsOpen="False" IsClosable="True" />
+            <ScrollViewer Grid.Row="2">
+                <StackPanel x:Name="GroupsPanel" Spacing="6" />
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Right: detail -->
+        <ScrollViewer Grid.Column="1">
+            <StackPanel x:Name="DetailPanel" Spacing="10" Visibility="Collapsed" Padding="0,0,12,16">
+                <TextBlock x:Name="DetailTitle" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                <TextBlock x:Name="DetailCourse" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock x:Name="DetailDue" />
+                <TextBlock x:Name="DetailStatus" />
+                <TextBlock x:Name="DetailGrade" TextWrapping="Wrap" />
+                <TextBlock x:Name="DetailAttachments" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="OpenButton" Content="Open in Moodle" Click="OpenButton_Click" />
+                    <Button x:Name="DocxButton" Content="Generate .docx" Click="DocxButton_Click" />
+                </StackPanel>
+                <TextBlock Text="Description" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
+                <TextBlock x:Name="DetailDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                <Expander x:Name="HistoryExpander" Header="History" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch" Expanding="HistoryExpander_Expanding">
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ListView x:Name="HistoryList" MaxHeight="180" SelectionChanged="HistoryList_SelectionChanged" />
+                        <StackPanel x:Name="DiffPanel" Grid.Row="1" />
+                    </Grid>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+        <TextBlock x:Name="EmptyHint" Grid.Column="1" Text="Select an assignment" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Grid>
+</Page>
