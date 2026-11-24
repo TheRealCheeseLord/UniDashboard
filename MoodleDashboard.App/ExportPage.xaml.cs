@@ -10,6 +10,8 @@ namespace MoodleDashboard.App;
 public sealed partial class ExportPage : Page
 {
     static App A => App.Current;
+    /// <summary>Optional tab requested via "--export=google".</summary>
+    public static string? RequestedTab { get; set; }
     bool _loading = true;
 
     public ExportPage()
@@ -26,7 +28,15 @@ public sealed partial class ExportPage : Page
             _loading = false;
             UpdateCount();
             BuildGoogleSection();
+            if (RequestedTab is { } t) { foreach (SelectorBarItem it in Tabs.Items) if ((string?)it.Tag == t) Tabs.SelectedItem = it; RequestedTab = null; }
         };
+    }
+
+    void Tabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var google = (Tabs.SelectedItem?.Tag as string) == "google";
+        TabIcs.Visibility = google ? Visibility.Collapsed : Visibility.Visible;
+        GooglePanel.Visibility = google ? Visibility.Visible : Visibility.Collapsed;
     }
 
     ExportOptions Options() => new()
@@ -54,7 +64,10 @@ public sealed partial class ExportPage : Page
     void UpdateCount()
     {
         var items = ExportBuilder.Build(A.Db, Options(), DateTimeOffset.Now);
-        CountText.Text = $"{items.Count(i => i.Kind == ExportKind.Session)} sessions · {items.Count(i => i.Kind == ExportKind.Exam)} exams selected";
+var sessions = items.Count(i => i.Kind == ExportKind.Session);
+        var exams = items.Count(i => i.Kind == ExportKind.Exam);
+        CountSessions.Text = $"{sessions} session{(sessions == 1 ? "" : "s")}";
+        CountExams.Text = $"{exams} exam{(exams == 1 ? "" : "s")}";
     }
 
     void Show(string msg, InfoBarSeverity sev, string? openPath = null)

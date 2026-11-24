@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using MoodleDashboard.Core.Export;
 using MoodleDashboard.Core.Google;
 
@@ -29,30 +30,55 @@ public sealed partial class ExportPage
     readonly StackPanel _review = new() { Spacing = 8 };
     readonly CheckBox _confirmMass = new() { Visibility = Visibility.Collapsed };
 
+    readonly Border _statusPill = new() { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 3, 10, 3), VerticalAlignment = VerticalAlignment.Center };
+
+    static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+
+    /// <summary>A titled card with an optional hint line, matching the other pages.</summary>
+    Border GCard(string title, string? hint, params UIElement[] content)
+    {
+        var sp = new StackPanel { Spacing = 10 };
+        sp.Children.Add(new TextBlock { Text = title, Style = (Style)Resources["CardTitle"] });
+        if (hint is not null) sp.Children.Add(new TextBlock { Text = hint, Style = (Style)Resources["Hint"] });
+        foreach (var c in content) sp.Children.Add(c);
+        return new Border { Style = (Style)Resources["CardStyle"], Child = sp };
+    }
+
     void BuildGoogleSection()
     {
         GooglePanel.Children.Clear();
         _loading = true;
 
-        // ---- setup guide
-        var guide = new StackPanel { Spacing = 6, Padding = new Thickness(0, 4, 0, 4) };
-        void Step(string text, string? linkText = null, string? url = null)
+        // ---- setup guide (inside the connection card)
+        var guide = new StackPanel { Spacing = 8, Padding = new Thickness(0, 6, 0, 6) };
+        void Step(string n, string text, string? linkText = null, string? url = null)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            row.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 700, VerticalAlignment = VerticalAlignment.Center });
+            var row = new Grid { ColumnSpacing = 10 };
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(22) });
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+            row.Children.Add(new Border
+            {
+                Width = 22, Height = 22, CornerRadius = new CornerRadius(11), VerticalAlignment = VerticalAlignment.Top,
+                Background = Res("AccentFillColorDefaultBrush"),
+                Child = new TextBlock { Text = n, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = Res("TextOnAccentFillColorPrimaryBrush") },
+            });
+            var body = new StackPanel { Spacing = 2 };
+            body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
             if (url is not null)
             {
-                var link = new HyperlinkButton { Content = linkText, Padding = new Thickness(2, 0, 2, 0) };
+                var link = new HyperlinkButton { Content = linkText, Padding = new Thickness(0) };
                 link.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
-                row.Children.Add(link);
+                body.Children.Add(link);
             }
+            Grid.SetColumn(body, 1);
+            row.Children.Add(body);
             guide.Children.Add(row);
         }
-        Step("1.  Create a Google Cloud project (any name).", "Open", "https://console.cloud.google.com/projectcreate");
-        Step("2.  Enable the “Google Calendar API” for it.", "Open", "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com");
-        Step("3.  Configure the OAuth consent screen (type External; app name and your e-mail are enough). Then press “Publish app” so it is “In production” — otherwise Google expires the login every 7 days. You will see an “unverified app” warning when signing in; that is normal for your own app (Advanced → continue).", "Open", "https://console.cloud.google.com/apis/credentials/consent");
-        Step("4.  Create credentials → OAuth client ID → application type “Desktop app”.", "Open", "https://console.cloud.google.com/apis/credentials");
-        Step("5.  Paste the Client ID and the Client secret below and save.");
+        Step("1", "Create a Google Cloud project (any name).", "Open Google Cloud", "https://console.cloud.google.com/projectcreate");
+        Step("2", "Enable the “Google Calendar API” for that project.", "Open the API page", "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com");
+        Step("3", "Set up the OAuth consent screen (type “External”; an app name and your e-mail are enough), then press “Publish app” so it is “In production” — otherwise Google expires the login every 7 days. The “unverified app” warning at sign-in is normal for your own app (Advanced → continue).", "Open the consent screen", "https://console.cloud.google.com/apis/credentials/consent");
+        Step("4", "Create credentials → OAuth client ID → application type “Desktop app”.", "Open credentials", "https://console.cloud.google.com/apis/credentials");
+        Step("5", "Paste the Client ID and Client secret here and save.");
         var saveClient = new Button { Content = "Save client" };
         saveClient.Click += (_, _) =>
         {
@@ -67,29 +93,30 @@ public sealed partial class ExportPage
         guide.Children.Add(saveClient);
         var expander = new Expander
         {
-            Header = "Setup guide (once, ~5 minutes)", Content = guide, HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "Setup guide (once, about 5 minutes)", Content = guide, HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, IsExpanded = !A.GoogleAuth.HasClient,
         };
-        GooglePanel.Children.Add(expander);
         _clientId.Text = A.GoogleCreds.Load().ClientId;
 
-        // ---- connection
+        // ---- card 1: connection
+        _gStatus.FontSize = 12;
+        _statusPill.Child = _gStatus;
         var conn = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        conn.Children.Add(_gStatus);
+        conn.Children.Add(_statusPill);
         conn.Children.Add(_connect);
         conn.Children.Add(_disconnect);
         conn.Children.Add(_ring);
-        GooglePanel.Children.Add(conn);
         _connect.Click += async (_, _) => await ConnectAsync();
         _disconnect.Click += async (_, _) => { await A.GoogleAuth.DisconnectAsync(); _cals = []; Show("Disconnected from Google. Events already created in Google stay where they are.", InfoBarSeverity.Informational); RefreshGoogleState(); FillCalendars(); };
+        GooglePanel.Children.Add(GCard("Connect your Google account",
+            "The app signs in through your browser. Nothing is sent anywhere else; the access token is stored encrypted for your Windows account.", conn, expander));
 
-        // ---- calendars
+        // ---- card 2: calendar
         var refresh = new Button { Content = "Refresh list", VerticalAlignment = VerticalAlignment.Bottom };
         refresh.Click += async (_, _) => await LoadCalendarsAsync();
         var tgt = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         tgt.Children.Add(_target);
         tgt.Children.Add(refresh);
-        GooglePanel.Children.Add(tgt);
         _target.SelectionChanged += (_, _) =>
         {
             if (_loading || _target.SelectedItem is not ComboBoxItem { Tag: GoogleCalendarInfo c }) return;
@@ -97,31 +124,37 @@ public sealed partial class ExportPage
             A.Settings.GoogleTargetCalendarName = c.Name;
             ClearPreview();
         };
-        GooglePanel.Children.Add(new TextBlock { Text = "Look for events I already imported myself (e.g. from u:find's iCal) in:", FontSize = 12, Margin = new Thickness(0, 6, 0, 0) });
-        GooglePanel.Children.Add(_scan);
+        var scanBox = new Expander
+        {
+            Header = "Look for events I imported myself (e.g. from u:find's iCal) in these calendars", Content = _scan,
+            HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        };
+        GooglePanel.Children.Add(GCard("Choose the calendar",
+            "Only events this app creates (marked with a hidden tag) are ever changed there. Everything else in the calendar is left alone.", tgt, scanBox));
 
-        // ---- actions
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(0, 8, 0, 0) };
+        // ---- card 3: sync
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         actions.Children.Add(_previewBtn);
         actions.Children.Add(_applyBtn);
         actions.Children.Add(_syncBtn);
-        GooglePanel.Children.Add(actions);
         _previewBtn.Click += async (_, _) => await PreviewAsync();
         _applyBtn.Click += async (_, _) => await ApplyAsync();
         _syncBtn.Click += async (_, _) => await SyncNowAsync();
+        _previewBtn.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
 
         _auto.IsOn = A.Settings.GoogleAutoSync;
         _overwrite.IsOn = A.Settings.GoogleOverwriteEdits;
         _auto.Toggled += (_, _) => { if (!_loading) A.Settings.GoogleAutoSync = _auto.IsOn; };
         _overwrite.Toggled += (_, _) => { if (!_loading) { A.Settings.GoogleOverwriteEdits = _overwrite.IsOn; ClearPreview(); } };
-        GooglePanel.Children.Add(_auto);
-        GooglePanel.Children.Add(_overwrite);
-        GooglePanel.Children.Add(_gLast);
+        GooglePanel.Children.Add(GCard("Preview, then sync",
+            "“Preview changes” shows exactly what would happen. Nothing is written until you apply it.", actions, _auto, _overwrite, _gLast));
+
         GooglePanel.Children.Add(_review);
 
-        var removeAll = new Button { Content = "Remove everything this app created in this calendar…", Margin = new Thickness(0, 12, 0, 0) };
+        // ---- card 4: undo
+        var removeAll = new Button { Content = "Remove everything this app created in this calendar…" };
         removeAll.Click += async (_, _) => await RemoveAllAsync();
-        GooglePanel.Children.Add(removeAll);
+        GooglePanel.Children.Add(GCard("Undo", "Deletes only the events carrying this app's hidden tag. Your own events and old imports are not touched; Google keeps deleted events in the trash for about 30 days.", removeAll));
 
         _loading = false;
         RefreshGoogleState();
@@ -134,6 +167,7 @@ public sealed partial class ExportPage
     {
         var connected = A.GoogleAuth.IsConnected;
         _gStatus.Text = connected ? "● Connected" : A.GoogleAuth.HasClient ? "Not connected" : "Set up the client first";
+        _statusPill.Background = connected ? Res("SystemFillColorSuccessBackgroundBrush") : Res("SubtleFillColorSecondaryBrush");
         _connect.IsEnabled = A.GoogleAuth.HasClient && !connected;
         _disconnect.IsEnabled = connected;
         var ready = connected && !string.IsNullOrEmpty(A.Settings.GoogleTargetCalendarId);

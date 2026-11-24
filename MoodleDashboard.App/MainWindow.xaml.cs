@@ -64,7 +64,11 @@ public sealed partial class MainWindow : Window
                 PlannerPage.RequestedTab = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
                 Nav.SelectedItem = NavItem("planner");
             }
-            else if (part == "--export") Nav.SelectedItem = NavItem("export");
+            else if (part == "--export" || part.StartsWith("--export="))
+            {
+                ExportPage.RequestedTab = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
+                Nav.SelectedItem = NavItem("export");
+            }
             else if (part == "--settings" || part.StartsWith("--settings="))
             {
                 SettingsPage.RequestedTab = part.Contains('=') ? part[(part.IndexOf('=') + 1)..] : null;
