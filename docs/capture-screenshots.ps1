@@ -57,7 +57,12 @@ try {
         Start-Sleep -Milliseconds 700
         [void][Win]::SetForegroundWindow($h)
         $r = New-Object Win+RECT
-        [void][Win]::DwmGetWindowAttribute($h, 9, [ref]$r, [Runtime.InteropServices.Marshal]::SizeOf($r))   # DWMWA_EXTENDED_FRAME_BOUNDS
+        for ($try = 0; $try -lt 10; $try++) {
+            [void][Win]::DwmGetWindowAttribute($h, 9, [ref]$r, [Runtime.InteropServices.Marshal]::SizeOf($r))   # DWMWA_EXTENDED_FRAME_BOUNDS
+            if (($r.R - $r.L) -ge 1000 -and ($r.B - $r.T) -ge 600) { break }
+            # The window was not at full size yet (the very first grab could catch it mid-startup): put it back and look again.
+            [void][Win]::ShowWindow($h, 9); [void][Win]::MoveWindow($h, 40, 40, 1440, 900, $true); Start-Sleep -Milliseconds 700
+        }
         $w = $r.R - $r.L; $ht = $r.B - $r.T
         $bmp = New-Object Drawing.Bitmap $w, $ht
         $g = [Drawing.Graphics]::FromImage($bmp)
@@ -76,7 +81,7 @@ try {
         elseif ($el.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$p)) { $p.Select() }
     }
 
-    Shot 'assignments'      ''
+    Shot 'assignments'      '--assignment=3'   # overview with an assignment open (an empty detail pane makes a poor picture)
     Shot 'assignment-detail' '--assignment=2'
     ClickByName 'History'; Start-Sleep -Seconds 1; Shot 'assignment-history' '' 1
     Shot 'calendar-week'    '--calendar=week'

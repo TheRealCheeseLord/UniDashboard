@@ -30,7 +30,7 @@ public class AssignmentRow
 public sealed partial class AssignmentsPage : Page
 {
     static App A => App.Current;
-    static readonly System.Globalization.CultureInfo De = System.Globalization.CultureInfo.GetCultureInfo("de-AT");
+    static readonly System.Globalization.CultureInfo En = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
     readonly List<ListView> _lists = [];
     Assignment? _current;
     long? _showOnLoad;
@@ -231,10 +231,10 @@ public sealed partial class AssignmentsPage : Page
         if (a.DueAt is { } d)
         {
             var local = d.ToLocalTime();
-            DateDow.Text = local.ToString("ddd", De).TrimEnd('.').ToUpperInvariant();
+            DateDow.Text = local.ToString("ddd", En).TrimEnd('.').ToUpperInvariant();
             DateDay.Text = local.Day.ToString();
-            DateMonth.Text = local.ToString("MMM yyyy", De);
-            DetailDue.Text = $"Due {local.ToString("dddd, d MMMM yyyy", De)} at {local:HH:mm}";
+            DateMonth.Text = local.ToString("MMM yyyy", En);
+            DetailDue.Text = $"{local.ToString("dddd, d MMMM yyyy", En)} at {local:HH:mm}";
             DueRelative.Text = "· " + RelativeDue(d, now);
             DueRelative.Foreground = DueBrush(a, now);
         }

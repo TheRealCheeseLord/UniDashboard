@@ -4,7 +4,7 @@
 
 ![Assignments](screenshots/assignments.png)
 
-- **Grouped list**: Overdue (only if not submitted), Today, This week, Later, and a collapsed Submitted group. Filter by all / open / submitted.
+- **Grouped list**: Overdue (only if not submitted), Today, This week, Later, and Submitted. Overdue and Submitted start collapsed (Submitted is open on the *Submitted* tab). Filter by all / open / submitted with the tabs above the list; a one-line summary shows how many are overdue or due today.
 - Each row shows the title, the course, a relative due time that turns red as the deadline approaches, and a dot when something changed since you last looked.
 - **Detail pane**: absolute and relative due date, submission status, grade, the description, attachment count (files are downloaded in Moodle, not here), **Open in Moodle** and **Generate .docx**.
 - Opening an assignment clears its "changed" dot.
