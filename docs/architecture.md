@@ -26,7 +26,8 @@ The App and the Agent both reference Core and share one SQLite database. A named
 
 | Folder | Responsibility |
 |---|---|
-| `Auth/` | Single sign-on via Playwright (Chrome, falling back to Edge) to obtain a Moodle token; `TokenStore` keeps it DPAPI-encrypted and the u:account password in Credential Manager |
+| `Auth/` | `AuthService` obtains the Moodle token: saved web session, else scripted single sign-on with the stored u:account, else (app only) the sign-in window; `TokenStore` keeps the token DPAPI-encrypted and the u:account password in Credential Manager |
+| `Web/` | The purpose-built HTTP layer that replaced a browser driver: `WebSession` (own cookie jar, https only, allow-listed hosts, bounded manual redirects, size-capped bodies), `HtmlForms` (tiny form/link scanner, no HTML-parser dependency), `UnivieLogin` (scripted Shibboleth / Keycloak sign-in), `IInteractiveLogin` (implemented by the app's WebView2 sign-in window) |
 | `Api/` | `MoodleClient`: courses, assignments, submission status |
 | `Uspace/`, `Ufind/` | Enrolments, sessions and exams from u:space; static course info from u:find |
 | `Sync/` | `SyncService` (assignments), `ChangeDetector` (normalise, hash, classify changes), `NotificationRules` |
@@ -51,7 +52,10 @@ The App and the Agent both reference Core and share one SQLite database. A named
 - Moodle token and Google credentials: DPAPI (`CurrentUser`).
 - u:account password: Windows Credential Manager only.
 - No telemetry. Network access only to Moodle, u:space, u:find, and Google when enabled.
-- The background agent never opens a browser; if a silent login fails it raises a "login required" toast instead.
+- No browser driver or Node runtime is shipped. Sign-in traffic goes only to https hosts under `univie.ac.at` (plus the configured Moodle host); every redirect hop is checked, and credentials are only ever posted to those hosts.
+- The scripted login submits the credentials once; if the login form comes back it stops and remembers the rejected password (hash only), so an account can never be locked by retries.
+- The manual sign-in window is an embedded WebView2 locked to the same hosts, with its own profile folder under the app's data folder (it has no access to your browser profile or cookies).
+- The background agent never opens a window; if the silent login fails it raises a "login required" toast instead.
 
 ## Tests
 

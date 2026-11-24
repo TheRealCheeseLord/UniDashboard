@@ -26,9 +26,6 @@ foreach ($proj in 'UniDashboard.App', 'UniDashboard.Agent') {
     if ($LASTEXITCODE -ne 0) { throw "publish failed: $proj" }
 }
 
-# Playwright ships Node runtimes for every OS (~570 MB uncompressed); only the Windows one is ever used.
-Get-ChildItem "$publish\.playwright\node" -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -ne 'win32_x64' } | Remove-Item -Recurse -Force
 
 & $iscc /Qp "/DAppVersion=$Version" "/DPublishDir=$publish" "$PSScriptRoot\UniDashboard.iss"
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }

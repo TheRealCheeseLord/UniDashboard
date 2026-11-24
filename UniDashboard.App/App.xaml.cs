@@ -71,12 +71,13 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException += (_, e) => { FileLog.Write("app", "UNOBSERVED task exception: " + e.Exception); e.SetObserved(); };
 
         Settings = new AppSettings(Db);
-        Auth = new AuthService(Settings, Tokens);
-        // The App may show a browser (headed login) when the token expired.
+        // The App may show a sign-in window (embedded browser) when the scripted login cannot continue, e.g. the token expired.
+        var loginWindow = new WebView2Login(() => Window?.DispatcherQueue);
+        Auth = new AuthService(Settings, Tokens) { Interactive = loginWindow };
         Client = new MoodleClient(_http, Settings, Auth, headlessReauth: false);
         var notifier = new AppToastNotifier();
         Sync = new SyncService(Db, Settings, Client, notifier, m => FileLog.Write("app", m));
-        Sync.Univie = new UniDashboard.Core.Univie.UnivieSyncService(Db, Settings, new UniDashboard.Core.Uspace.UspaceClient(Settings),
+        Sync.Univie = new UniDashboard.Core.Univie.UnivieSyncService(Db, Settings, new UniDashboard.Core.Uspace.UspaceClient(Settings) { Interactive = loginWindow },
             new UniDashboard.Core.Ufind.UfindClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: false, m => FileLog.Write("app", m));
         GoogleAuth = new UniDashboard.Core.Google.GoogleAuth(_http, GoogleCreds);
         GoogleApi = new UniDashboard.Core.Google.GoogleCalendarClient(_http, (force, ct) => GoogleAuth.GetAccessTokenAsync(force, ct));

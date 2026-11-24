@@ -10,6 +10,24 @@ if (args.Contains("--seed-demo"))   // fake data for screenshots/demos: Smoke --
     return;
 }
 
+if (args.Contains("--trace-login"))   // diagnostic: follow the real sign-in redirect chain WITHOUT credentials, print where it leads. Touches no data.
+{
+    // Smoke --trace-login moodle|uspace   → hosts, paths, status codes and form FIELD NAMES only (no values, no cookies, no query strings)
+    var which = args[Array.IndexOf(args, "--trace-login") + 1];
+    var (startUrl, done, hints) = which == "uspace"
+        ? (new Uri("https://uspace.univie.ac.at/web/studium/anmeldeuebersicht"), new System.Text.RegularExpressions.Regex(@"^https://uspace\.univie\.ac\.at/(?!c/portal/login)"), new[] { "broker/shibboleth/login" })
+        : (new Uri("https://moodle.univie.ac.at/login/index.php"), new System.Text.RegularExpressions.Regex(@"^https://moodle\.univie\.ac\.at/(?!login/)"), (string[]?)null);
+    using var web = new UniDashboard.Core.Web.WebSession(["univie.ac.at"]) { Trace = s => Console.WriteLine("  " + s) };
+    try
+    {
+        await new UniDashboard.Core.Web.UnivieLogin(web).RunAsync(startUrl, new(u => done.IsMatch(u.AbsoluteUri), null, hints));
+        Console.WriteLine("reached the target without logging in");
+    }
+    catch (LoginRequiredException e) { Console.WriteLine("stopped (expected without credentials): " + e.Message); }
+    catch (UniDashboard.Core.Web.WebSecurityException e) { Console.WriteLine("BLOCKED by the safety rules: " + e.Message); }
+    return;
+}
+
 var db = new Database();
 var settings = new AppSettings(db);
 var tokens = new TokenStore();

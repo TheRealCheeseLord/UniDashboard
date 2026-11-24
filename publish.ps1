@@ -8,10 +8,11 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 }
 $sdk = (& dotnet --version)
 if (-not $sdk.StartsWith('10.')) { throw "The .NET 10 SDK is required (found $sdk). Install it from https://dotnet.microsoft.com/download/dotnet/10.0" }
-$browser = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
-             "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
-             "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ }
-if (-not $browser) { Write-Warning 'Neither Google Chrome nor Microsoft Edge was found; the university login needs one of them.' }
+# The sign-in window (only needed for a manual login) uses the Microsoft Edge WebView2 Runtime; it ships with Windows 11 and Microsoft Edge.
+$wv2 = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'HKCU:\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+if (-not ($wv2 | Where-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv })) {
+    Write-Warning 'The Microsoft Edge WebView2 Runtime was not found; the manual sign-in window needs it (https://go.microsoft.com/fwlink/p/?LinkId=2124703).'
+}
 
 # --- build + install
 $dest = Join-Path $env:LOCALAPPDATA 'UniDashboard\bin'
@@ -20,8 +21,7 @@ foreach ($proj in 'UniDashboard.App', 'UniDashboard.Agent') {
     dotnet publish "$PSScriptRoot\$proj" -c Release -r win-x64 -p:Platform=x64 --self-contained -o $dest
     if ($LASTEXITCODE -ne 0) { throw "publish failed: $proj" }
 }
-# Playwright ships Node runtimes for every OS (~570 MB); only the Windows one is ever used.
-Get-ChildItem "$dest\.playwright\node" -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -ne 'win32_x64' } | Remove-Item -Recurse -Force
+# Leftovers of the old browser driver (publishing does not delete files that are no longer part of the build).
+Remove-Item "$dest\.playwright", "$dest\Microsoft.Playwright.dll", "$dest\playwright.ps1" -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Installed to $dest"
 Write-Host "Start: $dest\UniDashboard.App.exe  (enable the background agent in Settings > Sync)"

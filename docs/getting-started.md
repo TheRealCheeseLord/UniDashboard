@@ -4,7 +4,7 @@
 
 **Installer (recommended).** Download `UniDashboard-Setup-x.y.z.exe` from the [latest release](https://github.com/TheRealCheeseLord/UniDashboard/releases/latest) and run it. It installs per user into `%LOCALAPPDATA%\UniDashboard\bin` (no admin rights) and adds a Start Menu entry. Because the installer is not code-signed yet, Windows SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. Verify the download against the `.sha256` file on the release page if you like.
 
-Prerequisites: Windows 10 (1809) / 11 x64 and Chrome or Edge.
+Prerequisites: Windows 10 (1809) / 11 x64. The manual sign-in window needs the Microsoft Edge WebView2 Runtime, which is part of Windows 11 and Microsoft Edge (the installer does not need a separate browser).
 
 **From source.** Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Git:
 
@@ -28,11 +28,11 @@ The app looks for a newer release when it starts (at most once a day) and shows 
 ## 2. Connect Moodle
 
 1. **Settings → Accounts → Moodle address**: the address of your Moodle (for example the University of Vienna Moodle).
-2. Press **Log in / log in again**. A browser window opens for the university single sign-on. When it finishes, the window closes and the app stores a Moodle token (encrypted with DPAPI). It only asks again when Moodle says the token expired.
+2. Press **Log in / log in again**. A sign-in window opens for the university single sign-on (it is skipped when the saved u:account password from step 3 lets the app sign in on its own). When it finishes, the window closes and the app stores a Moodle token (encrypted with DPAPI). It only asks again when Moodle says the token expired.
 
 ## 3. Silent background login (optional, recommended)
 
-Under *University login* you can store your u:account username and password. They go into the Windows Credential Manager (entry `UniDashboard/univie`), never into the app database. With them the background agent can refresh sessions without opening a browser. If the university rejects the password the app stops retrying, so it cannot lock your account; save new credentials to re-enable it.
+Under *University login* you can store your u:account username and password. They go into the Windows Credential Manager (entry `UniDashboard/univie`), never into the app database. With them the background agent can refresh sessions on its own, without any window. If the university rejects the password the app stops retrying, so it cannot lock your account; save new credentials to re-enable it.
 
 Without stored credentials everything still works, but when a session expires you have to log in again from the app (the agent sends a "login required" notification).
 
@@ -70,7 +70,8 @@ Set the environment variable `UNIDASHBOARD_DATA_DIR` to use a different folder (
 | Problem | What to try |
 |---|---|
 | `publish.ps1` fails on restore/build | Check `dotnet --version` shows 10.x; run from a normal PowerShell, not as a different user. |
-| Login window never completes | Complete MFA in the opened browser; make sure Chrome or Edge is installed. Log files in `logs\` show details. |
+| Login window never completes | Complete the login (and any second factor) in the sign-in window. If no window opens, install the [Microsoft Edge WebView2 Runtime](https://go.microsoft.com/fwlink/p/?LinkId=2124703). Log files in `logs\` show details. |
+| Background sync asks for a login again | The university may have changed its login pages, or the saved password was rejected. Press **Log in / log in again** once; see `logs\`. |
 | No toasts | Make sure Windows notifications / Focus Assist allow the app, and that the relevant kind is ticked in *Settings → Notifications*. |
 | Agent does not run | Open Task Scheduler and look for "UniDashboard Agent"; toggle *Sync in the background* off and on to re-register it. |
 | Something looks wrong after an update | Close the app, run `.\publish.ps1` again. |

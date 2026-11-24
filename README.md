@@ -57,7 +57,7 @@ Want to be sure the file is the one built by this repository? Compare its checks
 (Get-FileHash .\UniDashboard-Setup-x.y.z.exe -Algorithm SHA256).Hash
 ```
 
-Requirements: Windows 10 (1809) or Windows 11, x64, and Google Chrome or Microsoft Edge (for the university single sign-on; Chrome is tried first).
+Requirements: Windows 10 (1809) or Windows 11, x64. The university sign-in runs inside the app (no browser needed); only the manual sign-in window uses the Microsoft Edge WebView2 Runtime, which is part of Windows 11 and Microsoft Edge.
 
 ### Updates
 
@@ -80,7 +80,7 @@ cd UniDashboard
 `publish.ps1` builds the app and the background agent (self-contained, win-x64) into `%LOCALAPPDATA%\UniDashboard\bin`, the same place the installer uses. It stops a running copy first, so you can run it again at any time to update. To build the installer yourself see [docs/releasing.md](docs/releasing.md).
 ## First run
 
-1. Open **Settings → Accounts**, enter your Moodle address and press **Log in**. Your browser opens for the university login; the app keeps the session.
+1. Open **Settings → Accounts**, enter your Moodle address and press **Log in**. A sign-in window opens for the university login (skipped when your saved u:account password, step 2, lets the app sign in on its own); the app keeps the session.
 2. Optionally save your u:account username and password under *University login* so the background agent can log in silently (stored in the Windows Credential Manager).
 3. Open **Settings → Sync**, pick the Moodle courses to include and switch on **Sync in the background**.
 4. Press **Sync now** on the Assignments page, and **Sync courses** on the Courses page.

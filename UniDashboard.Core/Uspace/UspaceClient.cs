@@ -1,9 +1,10 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Playwright;
 using UniDashboard.Core.Auth;
+using UniDashboard.Core.Web;
 
 namespace UniDashboard.Core.Uspace;
 
@@ -40,126 +41,124 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
     const string Base = "https://uspace.univie.ac.at";
     const string Page = Base + "/web/studium/anmeldeuebersicht";
     const string Target = "as-studierende-anmeldeuebersicht";
+    static readonly Regex Done = new(@"^https://uspace\.univie\.ac\.at/(?!c/portal/login)");
 
     readonly string _sessionPath = sessionPath ?? Path.Combine(Paths.Root, "uspace-session.bin");
     public string? LastMethod { get; private set; }
     public IReadOnlyList<ExamRegistrationDto> LastExamRegistrations { get; private set; } = [];
 
+    /// <summary>Visible login window; set by the App. The Agent leaves it null and never shows a browser.</summary>
+    public IInteractiveLogin? Interactive { get; set; }
+
     public void ForgetSession() { try { File.Delete(_sessionPath); } catch (IOException) { } }
 
-    /// <param name="headless">Agent: true — never show a browser. App: false — may show Chrome as a last resort.</param>
+    /// <summary>Only the university's own hosts are ever contacted.</summary>
+    static WebSession NewSession() => new(["univie.ac.at"]);
+
+    /// <param name="headless">Agent: true — never show a browser. App: false — may show the login window as a last resort.</param>
     public async Task<List<EnrolmentDto>> GetEnrolmentsAsync(bool headless, CancellationToken ct = default)
     {
-        using var pw = await Playwright.CreateAsync();
-
-        if (await TryFetchAsync(pw, ct) is { } fast) { LastMethod = "saved session"; return fast; }
+        if (await TryFetchAsync(ct) is { } fast) { LastMethod = "saved session"; return fast; }
 
         await using var gate = await AuthService.AcquireLockAsync(ct);
         // Another process may have just logged in while we waited for the lock.
-        if (await TryFetchAsync(pw, ct) is { } again) { LastMethod = "saved session"; return again; }
+        if (await TryFetchAsync(ct) is { } again) { LastMethod = "saved session"; return again; }
 
-        await LoginAsync(pw, headless, ct);
+        await LoginAsync(headless, ct);
         LastMethod = "login";
-        return await TryFetchAsync(pw, ct) ?? throw new LoginRequiredException("u:space session was not accepted after login");
+        return await TryFetchAsync(ct) ?? throw new LoginRequiredException("u:space session was not accepted after login");
     }
 
     // ---------- API with saved session (no browser)
 
-    async Task<List<EnrolmentDto>?> TryFetchAsync(IPlaywright pw, CancellationToken ct)
+    async Task<List<EnrolmentDto>?> TryFetchAsync(CancellationToken ct)
     {
         var state = LoadSession();
         if (state is null) return null;
-        var api = await pw.APIRequest.NewContextAsync(new() { StorageState = state, Timeout = 30_000 });
         try
         {
-            var resp = await api.GetAsync(Page, new() { MaxRedirects = 0 });
+            using var web = NewSession();
+            web.Import(state);
+            var resp = await web.GetAsync(new Uri(Page), follow: false, ct);
             if (resp.Status != 200) { DeleteSession(); return null; }      // 302 → login: session expired
-            var m = Regex.Match(await resp.TextAsync(), @"authToken['""]?\s*[:=]\s*['""]([^'""]+)['""]");
+            var m = Regex.Match(resp.Body, @"authToken['""]?\s*[:=]\s*['""]([^'""]+)['""]");
             if (!m.Success) { DeleteSession(); return null; }
             var csrf = m.Groups[1].Value;
 
-            using var sems = await CallAsync(api, csrf, "GET", "/v2/anmeldung/semesters", null);
+            using var sems = await CallAsync(web, csrf, "GET", "/v2/anmeldung/semesters", null, ct);
             if (sems is null) { DeleteSession(); return null; }
             var semesters = sems.RootElement.EnumerateArray().Select(e => e.GetString()!).ToList();
             if (semesters.Count == 0) return [];
 
-            using var list = await CallAsync(api, csrf, "POST", "/v2/anmeldung/semesters/anmeldungen", JsonSerializer.Serialize(semesters));
+            using var list = await CallAsync(web, csrf, "POST", "/v2/anmeldung/semesters/anmeldungen", JsonSerializer.Serialize(semesters), ct);
             if (list is null) { DeleteSession(); return null; }
 
-            SaveSession(await api.StorageStateAsync());   // keep rolling cookies fresh
+            SaveSession(web.Export());   // keep rolling cookies fresh
             LastExamRegistrations = ParseExamRegistrations(list);
             return ParseEnrolments(list);
         }
-        catch (PlaywrightException) { return null; }
-        finally { await api.DisposeAsync(); }
+        // Network trouble (no HTTP status) or a refused request: treat as "no session"; real API errors (with a status) propagate.
+        catch (Exception e) when (e is HttpRequestException { StatusCode: null } or WebSecurityException or TaskCanceledException && !ct.IsCancellationRequested) { return null; }
     }
 
-    static async Task<JsonDocument?> CallAsync(IAPIRequestContext api, string csrf, string method, string path, string? body)
+    static async Task<JsonDocument?> CallAsync(WebSession web, string csrf, string method, string path, string? body, CancellationToken ct)
     {
         var envelope = JsonSerializer.Serialize(new
         {
             request = new { method, targetService = Target, path, queryParams = "", body },
         }, new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
-        var resp = await api.PostAsync($"{Base}/o/weserve-routing-rest/v1.0/generic", new()
-        {
-            DataString = envelope,
-            Headers = new Dictionary<string, string> { ["x-csrf-token"] = csrf, ["content-type"] = "application/json" },
-            MaxRedirects = 0,
-        });
+        var resp = await web.PostJsonAsync(new Uri($"{Base}/o/weserve-routing-rest/v1.0/generic"), envelope,
+            new Dictionary<string, string> { ["x-csrf-token"] = csrf }, ct);
         if (resp.Status is 401 or 403 or 302) return null;
-        if (!resp.Ok) throw new HttpRequestException($"u:space API {path} returned HTTP {resp.Status}");
-        return JsonDocument.Parse(await resp.TextAsync());
+        if (resp.Status is < 200 or > 299) throw new HttpRequestException($"u:space API {path} returned HTTP {resp.Status}", null, (HttpStatusCode)resp.Status);
+        return JsonDocument.Parse(resp.Body);
     }
 
     // ---------- login (Keycloak → Shibboleth broker → univie Weblogin)
 
-    async Task LoginAsync(IPlaywright pw, bool headless, CancellationToken ct)
+    async Task LoginAsync(bool headless, CancellationToken ct)
     {
         var creds = CredentialStore.Load();
         var blocked = creds is { } c0 && settings.RejectedCredentialHash == AuthService.CredHash(c0);
         if (headless && (creds is null || blocked))
             throw new LoginRequiredException(creds is null ? "No stored credentials for headless login" : "Stored credentials were rejected earlier — update them in Settings.");
 
-        try { await BrowserLoginAsync(pw, creds, headlessMode: true, ct); return; }
+        try { await ScriptedLoginAsync(blocked ? null : creds, ct); return; }
         catch (BadCredentialsException)
         {
             if (creds is { } c) settings.RejectedCredentialHash = AuthService.CredHash(c);
             throw new LoginRequiredException("Stored univie credentials were rejected — update them in Settings.");
         }
         catch (LoginRequiredException) when (!headless) { }
-        catch (PlaywrightException) when (!headless) { }
 
         if (headless) throw new LoginRequiredException("Headless u:space login did not complete");
-        await BrowserLoginAsync(pw, creds, headlessMode: false, ct);
+        await InteractiveLoginAsync(ct);
     }
 
-    async Task BrowserLoginAsync(IPlaywright pw, (string User, string Password)? creds, bool headlessMode, CancellationToken ct)
+    async Task ScriptedLoginAsync((string User, string Password)? creds, CancellationToken ct)
     {
-        await using var browser = await AuthService.LaunchAsync(pw, headlessMode);
-        var context = await browser.NewContextAsync(new() { StorageState = LoadSession(), Locale = "de-AT" });
-        context.SetDefaultTimeout(headlessMode ? 25_000 : 300_000);
-        var page = await context.NewPageAsync();
-        if (headlessMode)
-            await page.RouteAsync("**/*", r =>
-                r.Request.ResourceType is "image" or "font" or "stylesheet" or "media" ? r.AbortAsync() : r.ContinueAsync());
-
-        var done = new Regex(@"^https://uspace\.univie\.ac\.at/(?!c/portal/login)");
-        await page.GotoAsync(Page, new() { WaitUntil = WaitUntilState.DOMContentLoaded });
-
-        if (!done.IsMatch(page.Url))
+        using var web = NewSession();
+        web.Import(LoadSession());
+        try
         {
-            // Keycloak: choose the "Shibboleth" broker (= the univie Weblogin used for Moodle).
-            var shib = page.Locator("a[href*='broker/shibboleth/login']").First;
-            try { await shib.WaitForAsync(new() { Timeout = 8_000 }); await shib.ClickAsync(); }
-            catch (TimeoutException) { /* already past it (IdP session alive) */ }
-
-            if (!done.IsMatch(page.Url) && creds is { } c)
-                await AuthService.SubmitCredentialsAsync(page, c, done);
-
-            try { await page.WaitForURLAsync(done, new() { Timeout = headlessMode ? 25_000 : 300_000, WaitUntil = WaitUntilState.Commit }); }
-            catch (TimeoutException) { throw new LoginRequiredException(headlessMode ? "Headless login did not complete (MFA required?)" : "Login timed out"); }
+            // Keycloak: choose the "Shibboleth" broker (= the univie Weblogin used for Moodle), then the usual SSO form.
+            await new UnivieLogin(web).RunAsync(new Uri(Page), new(u => Done.IsMatch(u.AbsoluteUri), creds, ["broker/shibboleth/login"]), ct);
+            SaveSession(web.Export());
         }
-        SaveSession(await context.StorageStateAsync());
+        catch (Exception e) when (e is HttpRequestException or WebSecurityException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new LoginRequiredException("Headless u:space login failed: " + e.Message);
+        }
+    }
+
+    async Task InteractiveLoginAsync(CancellationToken ct)
+    {
+        if (Interactive is null) throw new LoginRequiredException("Interactive login is not available in this process.");
+        var cookies = await Interactive.RunAsync(new Uri(Page), Done, ct);
+        using var web = NewSession();
+        web.Import(LoadSession());
+        web.AddCookies(cookies);
+        SaveSession(web.Export());
     }
 
     // ---------- parsing (public for fixture tests)

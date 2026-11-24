@@ -162,7 +162,7 @@ public sealed partial class SettingsPage : Page
     {
         LoginButton.IsEnabled = false;
         Busy.IsActive = true;
-        LoginStatus.Text = "Waiting for you to log in in the browser window…";
+        LoginStatus.Text = "Waiting for you to log in in the sign-in window…";
         try
         {
             await Task.Run(() => A.Auth.LoginAsync(headless: false));

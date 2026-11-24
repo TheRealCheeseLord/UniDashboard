@@ -49,7 +49,7 @@
                             <TextBlock Text="Moodle" Style="{StaticResource CardTitle}" />
                             <TextBox x:Name="BaseUrlBox" Header="Moodle address" LostFocus="BaseUrlBox_LostFocus" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button x:Name="LoginButton" Content="Log in / log in again (opens your browser)" Click="LoginButton_Click" />
+                                <Button x:Name="LoginButton" Content="Log in / log in again (opens a sign-in window)" Click="LoginButton_Click" />
                                 <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" />
                                 <TextBlock x:Name="LoginStatus" VerticalAlignment="Center" Style="{StaticResource Hint}" />
                             </StackPanel>

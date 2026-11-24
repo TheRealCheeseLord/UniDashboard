@@ -29,7 +29,7 @@ public class UnivieSyncService(
         List<EnrolmentDto> fresh;
         try { fresh = await uspace.GetEnrolmentsAsync(headless, ct); }
         catch (LoginRequiredException e) { log?.Invoke("u:space login required: " + e.Message); return new(0, 0, 0, e.Message, true); }
-        catch (Exception e) when (e is HttpRequestException or Microsoft.Playwright.PlaywrightException or JsonException or TaskCanceledException && !ct.IsCancellationRequested)
+        catch (Exception e) when (e is HttpRequestException or UniDashboard.Core.Web.WebSecurityException or JsonException or TaskCanceledException && !ct.IsCancellationRequested)
         { log?.Invoke("u:space failed: " + e.Message); return new(0, 0, 0, e.Message); }
 
         _regs = uspace.LastExamRegistrations;
