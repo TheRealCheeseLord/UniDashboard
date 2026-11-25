@@ -141,6 +141,8 @@ public sealed partial class MainWindow : Window
         UpdateBar.IsOpen = true;
     }
 
+    public void HideUpdateBanner() => UpdateBar.IsOpen = false;
+
     async void UpdateInstall_Click(object sender, RoutedEventArgs e)
     {
         UpdateInstallButton.IsEnabled = false;

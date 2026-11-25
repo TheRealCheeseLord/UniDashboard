@@ -67,6 +67,13 @@ public class Database
         return c;
     }
 
+    /// <summary>Writes a consistent copy of the database (safe with WAL and while the Agent is running).</summary>
+    public void BackupTo(string path)
+    {
+        using var c = Open();
+        Exec(c, "VACUUM INTO $p", ("$p", path));
+    }
+
     public static void Exec(SqliteConnection c, string sql, params (string, object?)[] p)
     {
         using var cmd = c.CreateCommand();

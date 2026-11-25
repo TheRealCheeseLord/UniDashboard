@@ -49,6 +49,10 @@ Output: `artifacts\UniDashboard-Setup-0.2.0.exe` and `.exe.sha256`. The installe
 
 The download is hashed before it is run; a mismatch deletes the file and shows an error. Network or API errors simply mean "no update". For testing, set `UNIDASHBOARD_UPDATE_URL` to another release JSON (an `https://` or `file://` URL) before starting the app.
 
+## Custom upstream and downgrades
+
+Settings > About > "Upstream and versions" lets you point the updater at another GitHub `owner/repo` (e.g. a fork; a warning is shown when you leave the default) and lists that repo's releases (`GET /repos/{repo}/releases`, pre-releases included and labelled). Any release that has an installer and a SHA-256 can be installed, also an older one. Before every install from the app, `data.db` is copied to `backups\data-before-<version>-<timestamp>.db` next to it (the 5 newest are kept); an older version may not understand data written by a newer one, so restore that file if needed.
+
 ## Testing an update end to end
 
 1. Install version N (any build).

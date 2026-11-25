@@ -228,6 +228,25 @@
                             <TextBlock x:Name="UpdateNotes" Style="{StaticResource Hint}" IsTextSelectionEnabled="True" Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
+
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" CornerRadius="7" Background="#30F0B14A"><FontIcon Glyph="&#xE777;" FontSize="16" Foreground="#F0B14A" /></Border><TextBlock Text="Upstream and versions" Style="{StaticResource CardTitle}" /></StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="Updates come from the GitHub repository below. Pick any release to install it, including an older one (downgrade). Your database is backed up to the 'backups' folder before every install." />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox x:Name="UpdateRepoBox" Header="GitHub repository (owner/repo)" Width="320" PlaceholderText="TheRealCheeseLord/UniDashboard" />
+                                <Button x:Name="SaveRepoButton" Content="Save" VerticalAlignment="Bottom" Click="SaveRepo_Click" />
+                                <Button Content="Reset to default" VerticalAlignment="Bottom" Click="ResetRepo_Click" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="LoadReleasesButton" Content="Load releases" Click="LoadReleases_Click" />
+                                <ComboBox x:Name="ReleasesBox" Width="320" PlaceholderText="No releases loaded" />
+                                <Button x:Name="InstallSelectedButton" Content="Install selected version" IsEnabled="False" Click="InstallSelected_Click" />
+                            </StackPanel>
+                            <TextBlock x:Name="UpstreamStatus" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Grid>
         </ScrollViewer>

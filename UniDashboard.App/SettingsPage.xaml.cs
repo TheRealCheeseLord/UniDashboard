@@ -112,6 +112,7 @@ public sealed partial class SettingsPage : Page
     {
         VersionText.Text = $"UniDashboard {AppVersion.Text}";
         AutoUpdateSwitch.IsOn = S.AutoUpdateCheck;
+        UpdateRepoBox.Text = S.UpdateRepo;
         ShowUpdate(A.PendingUpdate);
         if (A.PendingUpdate is null && S.LastUpdateCheck > DateTimeOffset.MinValue)
             UpdateStatus.Text = $"You are up to date (last checked {S.LastUpdateCheck.ToLocalTime():g}).";
@@ -145,6 +146,77 @@ public sealed partial class SettingsPage : Page
         UpdateStatus.Text = "Downloading and verifying…";
         var error = await A.InstallUpdateAsync();
         if (error is not null) { UpdateStatus.Text = error; InstallUpdateButton.IsEnabled = true; }
+    }
+
+    // ---- upstream + version picker
+
+    List<UniDashboard.Core.Update.UpdateInfo> _releases = [];
+
+    async void SaveRepo_Click(object sender, RoutedEventArgs e)
+    {
+        var repo = UpdateRepoBox.Text.Trim();
+        if (!UniDashboard.Core.Update.UpdateService.IsValidRepo(repo)) { UpstreamStatus.Text = "Please enter the repository as owner/repo, e.g. TheRealCheeseLord/UniDashboard."; return; }
+        if (repo == S.UpdateRepo) { UpstreamStatus.Text = "Already using this repository."; return; }
+        if (repo != UniDashboard.Core.Update.UpdateService.DefaultRepo)
+        {
+            var dlg = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = "Use a different update source?",
+                Content = $"UniDashboard will download installers from github.com/{repo} and run them. Only continue if you trust the owner of that repository; the checksum is published by the same source and cannot protect you from it.",
+                PrimaryButtonText = "Use this repository", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) { UpdateRepoBox.Text = S.UpdateRepo; return; }
+        }
+        SetRepo(repo);
+    }
+
+    void ResetRepo_Click(object sender, RoutedEventArgs e) => SetRepo(UniDashboard.Core.Update.UpdateService.DefaultRepo);
+
+    void SetRepo(string repo)
+    {
+        S.UpdateRepo = repo;
+        UpdateRepoBox.Text = S.UpdateRepo;
+        A.ResetPendingUpdate();
+        A.Window?.HideUpdateBanner();
+        ShowUpdate(null);
+        UpdateStatus.Text = "";
+        _releases = [];
+        ReleasesBox.ItemsSource = null;
+        InstallSelectedButton.IsEnabled = false;
+        UpstreamStatus.Text = $"Updates now come from github.com/{S.UpdateRepo}.";
+    }
+
+    async void LoadReleases_Click(object sender, RoutedEventArgs e)
+    {
+        LoadReleasesButton.IsEnabled = false;
+        UpstreamStatus.Text = "Loading releases…";
+        _releases = (await A.ListReleasesAsync()).ToList();
+        ReleasesBox.ItemsSource = _releases.Select(r =>
+            $"{r.Version.ToString(3)}{(r.Version == AppVersion.Current ? "  (installed)" : r.Version > AppVersion.Current ? "  (newer)" : "  (older)")}{(r.Prerelease ? "  [pre-release]" : "")}{(DateTimeOffset.TryParse(r.PublishedAt, out var d) ? "  " + d.ToLocalTime().ToString("d") : "")}").ToList();
+        if (_releases.Count > 0) ReleasesBox.SelectedIndex = 0;
+        InstallSelectedButton.IsEnabled = _releases.Count > 0;
+        UpstreamStatus.Text = _releases.Count > 0 ? $"{_releases.Count} installable release(s) found." : "No installable releases found (or GitHub could not be reached; see the log).";
+        LoadReleasesButton.IsEnabled = true;
+    }
+
+    async void InstallSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var i = ReleasesBox.SelectedIndex;
+        if (i < 0 || i >= _releases.Count) return;
+        var r = _releases[i];
+        var downgrade = r.Version < AppVersion.Current;
+        var dlg = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = downgrade ? $"Downgrade to {r.Version.ToString(3)}?" : $"Install {r.Version.ToString(3)}?",
+            Content = (downgrade ? "Data saved by a newer version might not be readable by an older one. " : "") +
+                      "Your database is backed up to the 'backups' folder first. The app will close, install and restart.",
+            PrimaryButtonText = downgrade ? "Downgrade" : "Install", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close,
+        };
+        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+        InstallSelectedButton.IsEnabled = false;
+        UpstreamStatus.Text = "Backing up, downloading and verifying…";
+        var error = await A.InstallUpdateAsync(r);
+        if (error is not null) { UpstreamStatus.Text = error; InstallSelectedButton.IsEnabled = true; }
     }
 
     void OpenExport_Click(object sender, RoutedEventArgs e) => A.Window?.HandleCommandLine("--export");

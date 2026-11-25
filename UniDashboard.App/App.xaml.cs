@@ -41,13 +41,30 @@ public partial class App : Application
         return PendingUpdate;
     }
 
-    /// <summary>Downloads + verifies the pending installer, starts it and exits. Returns an error text, or null when the installer took over.</summary>
-    public async Task<string?> InstallUpdateAsync()
+    public void ResetPendingUpdate() => PendingUpdate = null;
+
+    /// <summary>Lists the upstream's releases (newest first) for the version picker.</summary>
+    public Task<IReadOnlyList<UniDashboard.Core.Update.UpdateInfo>> ListReleasesAsync() => Updater.ListReleasesAsync();
+
+    /// <summary>Copies data.db next to itself before a version change; keeps the 5 newest backups.</summary>
+    void BackupDatabase(UniDashboard.Core.Update.UpdateInfo target)
     {
-        if (PendingUpdate is null) return "No update is pending.";
+        var dir = Path.Combine(Path.GetDirectoryName(Paths.Db)!, "backups");
+        Directory.CreateDirectory(dir);
+        Db.BackupTo(Path.Combine(dir, $"data-before-{target.Version.ToString(3)}-{DateTime.Now:yyyyMMdd-HHmmss}.db"));
+        foreach (var old in new DirectoryInfo(dir).GetFiles("data-before-*.db").OrderByDescending(f => f.CreationTimeUtc).Skip(5))
+            try { old.Delete(); } catch (IOException) { }
+    }
+
+    /// <summary>Backs up the database, downloads + verifies the installer (the pending update unless <paramref name="target"/> is given), starts it and exits. Returns an error text, or null when the installer took over.</summary>
+    public async Task<string?> InstallUpdateAsync(UniDashboard.Core.Update.UpdateInfo? target = null)
+    {
+        target ??= PendingUpdate;
+        if (target is null) return "No update is pending.";
         try
         {
-            var setup = await Updater.DownloadAsync(PendingUpdate);
+            BackupDatabase(target);
+            var setup = await Updater.DownloadAsync(target);
             FileLog.Write("app", $"update: starting installer {setup}");
             UniDashboard.Core.Update.UpdateService.StartInstaller(setup);
             Exit();
@@ -63,7 +80,7 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        Updater = new UniDashboard.Core.Update.UpdateService(_http, log: m => FileLog.Write("app", m));
+        Updater = new UniDashboard.Core.Update.UpdateService(_http, log: m => FileLog.Write("app", m), repo: () => Settings.UpdateRepo);
 
         // Never let a stray exception take the whole app down silently: log it (the stack goes to logspp-*.log).
         UnhandledException += (_, e) => { FileLog.Write("app", "UNHANDLED (UI): " + e.Exception); e.Handled = true; };

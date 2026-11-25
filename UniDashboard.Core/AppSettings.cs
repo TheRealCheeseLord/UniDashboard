@@ -30,6 +30,12 @@ public class AppSettings(Database db)
     public string RejectedCredentialHash { get => Get("rejected_cred_hash", ""); set => Set("rejected_cred_hash", value); }
     /// <summary>Look for a newer GitHub release at startup (at most once a day). Installing always needs your click.</summary>
     public bool AutoUpdateCheck { get => GetBool("auto_update_check", true); set => SetBool("auto_update_check", value); }
+    /// <summary>GitHub "owner/repo" updates are fetched from; invalid values fall back to the default.</summary>
+    public string UpdateRepo
+    {
+        get => db.GetSetting("update_repo") is { } r && Update.UpdateService.IsValidRepo(r) ? r : Update.UpdateService.DefaultRepo;
+        set => Set("update_repo", Update.UpdateService.IsValidRepo(value?.Trim()) ? value!.Trim() : Update.UpdateService.DefaultRepo);
+    }
     public DateTimeOffset LastUpdateCheck
     {
         get => long.TryParse(db.GetSetting("last_update_check"), out var v) ? DateTimeOffset.FromUnixTimeSeconds(v) : DateTimeOffset.MinValue;

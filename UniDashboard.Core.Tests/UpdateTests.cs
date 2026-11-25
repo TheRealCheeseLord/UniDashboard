@@ -18,7 +18,7 @@ public class UpdateTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
         {
             var url = r.RequestUri!.ToString();
-            if (url.EndsWith("/latest")) return Task.FromResult(new HttpResponseMessage(release) { Content = new StringContent(releaseJson) });
+            if (url.EndsWith("/latest") || url.Contains("/releases?per_page=")) return Task.FromResult(new HttpResponseMessage(release) { Content = new StringContent(releaseJson) });
             if (url.EndsWith(".sha256") && sidecar is not null) return Task.FromResult(new HttpResponseMessage { Content = new StringContent(sidecar) });
             if (url.EndsWith(".exe") && setup is not null) return Task.FromResult(new HttpResponseMessage { Content = new ByteArrayContent(setup) });
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -79,6 +79,44 @@ public class UpdateTests
         var u = await Svc(new Gh(Release("v0.2.0", withSidecar: false, digest: InstallerHash.ToLowerInvariant()), Installer)).CheckAsync();
         Assert.Equal(InstallerHash, u!.Sha256);
     }
+
+    [Fact]
+    public async Task Release_list_is_newest_first_and_includes_prereleases_but_skips_unusable_ones()
+    {
+        var json = "[" + string.Join(",", Release("v0.1.0"), Release("v0.3.0", prerelease: true), Release("v0.2.0"), Release("v0.9.0", draft: true), Release("v0.8.0", withSidecar: false)) + "]";
+        var list = await Svc(new Gh(json, Installer, InstallerHash), "0.2.0").ListReleasesAsync();
+        Assert.Equal(["0.3.0", "0.2.0", "0.1.0"], list.Select(r => r.Version.ToString(3)));
+        Assert.True(list[0].Prerelease);
+    }
+
+    [Fact]
+    public async Task Configured_repo_decides_which_url_is_asked()
+    {
+        var seen = new List<string>();
+        var svc = new UpdateService(new HttpClient(new Recording(seen)), () => new Version(0, 1, 0), repo: () => "someone/fork");
+        await svc.CheckAsync();
+        await svc.ListReleasesAsync();
+        Assert.Equal(["https://api.github.com/repos/someone/fork/releases/latest", "https://api.github.com/repos/someone/fork/releases?per_page=30"], seen);
+    }
+
+    sealed class Recording(List<string> seen) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
+        {
+            seen.Add(r.RequestUri!.ToString());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    [Theory]
+    [InlineData("owner/repo", true)]
+    [InlineData("a-b.c_d/e", true)]
+    [InlineData("owner", false)]
+    [InlineData("a/b/c", false)]
+    [InlineData("a b/c", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void Repo_names_are_validated(string? repo, bool ok) => Assert.Equal(ok, UpdateService.IsValidRepo(repo));
 
     [Fact]
     public async Task Release_without_an_installer_asset_is_ignored() =>
