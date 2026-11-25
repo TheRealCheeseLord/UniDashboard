@@ -168,7 +168,7 @@ public sealed partial class StudyPlanPage : Page
         {
             var show = new Button { Content = "Show details" };
             ToolTipService.SetToolTip(show, "Open this course in the Courses page");
-            show.Click += (_, _) => A.Window.HandleCommandLine("--course=" + key);
+            show.Click += (_, _) => A.Window!.HandleCommandLine("--course=" + key);
             buttons.Children.Add(show);
         }
         DetailHost.Children.Add(buttons);

@@ -169,6 +169,20 @@ public class SyncPlannerTests
     }
 
     [Fact]
+    public void Past_orphans_are_kept_as_history_and_future_ones_still_deleted()
+    {
+        var a = Item("a");                       // T0 .. T0+1h
+        var opt = new SyncOptions { CalendarId = Cal, KeepPastBefore = T0.AddDays(1) };
+        var past = Plan([], [State(a, "id1", "e1")], [Managed("a", "id1", "e1")], opt: opt);
+        Assert.Empty(past.Actions);
+        var unknownState = Plan([], [], [Managed("ghost", "idG", "e1")], opt: opt);
+        Assert.Empty(unknownState.Actions);
+
+        var future = Plan([], [State(a, "id1", "e1")], [Managed("a", "id1", "e1")], opt: new SyncOptions { CalendarId = Cal, KeepPastBefore = T0.AddMinutes(-5) });
+        Assert.Equal(1, future.Count(SyncActionKind.Delete));
+    }
+
+    [Fact]
     public void Orphan_that_the_user_edited_is_kept()
     {
         var a = Item("a");

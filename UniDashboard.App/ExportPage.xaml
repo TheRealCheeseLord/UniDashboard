@@ -41,7 +41,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="28">
                             <CheckBox x:Name="SessionsBox" Content="Lectures and course sessions" IsChecked="True" Click="Options_Changed" MinWidth="0" />
                             <CheckBox x:Name="ExamsBox" Content="Exams I'm registered for" IsChecked="True" Click="Options_Changed" MinWidth="0" />
-                            <CheckBox x:Name="FutureBox" Content="Only upcoming" IsChecked="True" Click="Options_Changed" MinWidth="0" />
+                            <CheckBox x:Name="FutureBox" Content="Only upcoming (Google keeps past events)" IsChecked="True" Click="Options_Changed" MinWidth="0" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Border CornerRadius="10" Padding="10,3" Background="{ThemeResource SubtleFillColorSecondaryBrush}">

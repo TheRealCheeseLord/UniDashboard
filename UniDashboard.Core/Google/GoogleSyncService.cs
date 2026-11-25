@@ -72,6 +72,7 @@ public class GoogleSyncService(Database db, AppSettings settings, IGoogleCalenda
         var plan = SyncPlanner.Plan(desired, states, managed, foreign, new SyncOptions
         {
             CalendarId = cal, OverwriteUserEdits = settings.GoogleOverwriteEdits,
+            KeepPastBefore = removeEverything ? null : now,   // past events are your history; only "remove everything" deletes them
             SourceHealthy = sourceHealthy && (desired.Count > 0 || removeEverything),
         });
         if (removeEverything) plan.Notes.Add("Removing every event this app created in this calendar.");

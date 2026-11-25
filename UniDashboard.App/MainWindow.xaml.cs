@@ -77,7 +77,7 @@ public sealed partial class MainWindow : Window
             {
                 _pendingAssignment = id;
                 if (ContentFrame.Content is AssignmentsPage page) page.ShowAssignment(id);
-                else if (Nav.SelectedItem == NavItem("assignments")) ContentFrame.Navigate(typeof(AssignmentsPage), id);
+                else if (ReferenceEquals(Nav.SelectedItem, NavItem("assignments"))) ContentFrame.Navigate(typeof(AssignmentsPage), id);
                 else Nav.SelectedItem = NavItem("assignments");
             }
             else if (part == "--studyplan" || part.StartsWith("--course=" + UniDashboard.Core.Univie.EnrolmentRecord.SectionPrefix))
@@ -88,7 +88,7 @@ public sealed partial class MainWindow : Window
             {
                 _pendingCourse = part["--course=".Length..];
                 if (ContentFrame.Content is CoursesPage cp) { cp.ShowCourse(_pendingCourse); _pendingCourse = null; }
-                else if (Nav.SelectedItem == NavItem("courses")) ContentFrame.Navigate(typeof(CoursesPage), _pendingCourse);
+                else if (ReferenceEquals(Nav.SelectedItem, NavItem("courses"))) ContentFrame.Navigate(typeof(CoursesPage), _pendingCourse);
                 else Nav.SelectedItem = NavItem("courses");
             }
             else if (part == "--calendar" || part.StartsWith("--calendar="))

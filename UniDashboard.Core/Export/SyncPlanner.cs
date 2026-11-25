@@ -28,6 +28,8 @@ public class SyncOptions
     public bool OverwriteUserEdits { get; init; }
     /// <summary>False when the data source failed or is empty: nothing is deleted then.</summary>
     public bool SourceHealthy { get; init; } = true;
+    /// <summary>Events that ended before this moment are history: orphaned ones are kept, never deleted. Null = no protection.</summary>
+    public DateTimeOffset? KeepPastBefore { get; init; }
     public int MassDeleteMin { get; init; } = 10;
     public double MassDeleteFraction { get; init; } = 0.25;
 }
@@ -117,6 +119,7 @@ public static class SyncPlanner
             {
                 if (!remoteById.TryGetValue(st.EventId, out var remote)) { plan.Actions.Add(new(SyncActionKind.Forget, st.ItemKey, null, st)); continue; }
                 consumedRemote.Add(remote.Id);
+                if (IsHistory(remote, options)) continue;   // already happened: stays in the calendar as history
                 var edited = st.Etag is not null && remote.Etag != st.Etag;
                 plan.Actions.Add(edited && !options.OverwriteUserEdits
                     ? new(SyncActionKind.KeepOrphanEdited, st.ItemKey, null, st, remote, null, "no longer exported, but you changed it in Google")
@@ -124,7 +127,7 @@ public static class SyncPlanner
             }
 
             // Events with our marker but unknown to the state (state was lost) and not wanted any more.
-            foreach (var r in remoteById.Values.Where(r => r.Managed && !consumedRemote.Contains(r.Id) && (r.ManagedKey is null || !desiredByKey.ContainsKey(r.ManagedKey))))
+            foreach (var r in remoteById.Values.Where(r => r.Managed && !consumedRemote.Contains(r.Id) && (r.ManagedKey is null || !desiredByKey.ContainsKey(r.ManagedKey)) && !IsHistory(r, options)))
                 plan.Actions.Add(new(SyncActionKind.Delete, r.ManagedKey ?? r.Id, null, null, r, null, "no longer exists in your timetable (not in sync state)"));
 
             var deletes = plan.Count(SyncActionKind.Delete);
@@ -137,4 +140,6 @@ public static class SyncPlanner
         }
         return plan;
     }
+
+    static bool IsHistory(RemoteEvent r, SyncOptions o) => o.KeepPastBefore is { } t && (r.End ?? r.Start) is { } end && end < t;
 }

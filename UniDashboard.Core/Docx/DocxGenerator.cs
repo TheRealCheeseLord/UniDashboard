@@ -40,9 +40,9 @@ public static partial class DocxGenerator
             if (doc.DocumentType != WordprocessingDocumentType.Document)
                 doc.ChangeDocumentType(WordprocessingDocumentType.Document);
             var main = doc.MainDocumentPart!;
-            Fill(main.Document.Body!, values);
-            foreach (var h in main.HeaderParts) Fill(h.Header, values);
-            foreach (var f in main.FooterParts) Fill(f.Footer, values);
+            Fill(main.Document!.Body!, values);
+            foreach (var h in main.HeaderParts) Fill(h.Header!, values);
+            foreach (var f in main.FooterParts) Fill(f.Footer!, values);
             main.Document.Save();
         }
         return ms.ToArray();

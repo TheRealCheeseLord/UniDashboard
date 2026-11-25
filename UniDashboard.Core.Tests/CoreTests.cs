@@ -181,12 +181,12 @@ public class DocxTests
         // Split "{{Title}}" across runs to simulate Word behaviour
         using (var d = WordprocessingDocument.Open(tpl, true))
         {
-            var p = d.MainDocumentPart!.Document.Body!.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().First();
+            var p = d.MainDocumentPart!.Document!.Body!.Descendants<DocumentFormat.OpenXml.Wordprocessing.Paragraph>().First();
             var run = p.Elements<DocumentFormat.OpenXml.Wordprocessing.Run>().First();
             var t = run.Elements<DocumentFormat.OpenXml.Wordprocessing.Text>().First();
             t.Text = "{{Ti";
             run.InsertAfterSelf(new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text("tle}}")));
-            d.MainDocumentPart.Document.Save();
+            d.MainDocumentPart.Document!.Save();
         }
 
         var values = new Dictionary<string, string>
@@ -198,13 +198,13 @@ public class DocxTests
         var bytes = DocxGenerator.Generate(tpl, values);
         using var ms = new MemoryStream(bytes);
         using var doc = WordprocessingDocument.Open(ms, false);
-        var body = doc.MainDocumentPart!.Document.Body!.InnerText;
+        var body = doc.MainDocumentPart!.Document!.Body!.InnerText;
         Assert.Contains("Übung 1", body);
         Assert.Contains("Line one", body);
         Assert.Contains("Line two", body);
         Assert.DoesNotContain("{{", body);
-        Assert.Contains("Jane Doe · Matrikelnummer 123", doc.MainDocumentPart.HeaderParts.First().Header.InnerText);
-        var hdr = doc.MainDocumentPart.HeaderParts.First().Header.InnerText;
+        Assert.Contains("Jane Doe · Matrikelnummer 123", doc.MainDocumentPart.HeaderParts.First().Header!.InnerText);
+        var hdr = doc.MainDocumentPart.HeaderParts.First().Header!.InnerText;
         Assert.Contains("1. November 2026", hdr);
         Assert.DoesNotContain("{{", hdr);
         File.Delete(tpl);
