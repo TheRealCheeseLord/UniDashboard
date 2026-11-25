@@ -11,8 +11,9 @@
 
         <StackPanel Spacing="6">
             <TextBlock Text="Exam planner" Style="{StaticResource TitleTextBlockStyle}" />
-            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="Recommendation only — nothing is registered for you. Register for the dates you choose in u:space. The plan avoids clashes with your lectures and with each other and never suggests a date whose registration has closed." />
+            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14"
+                       Text="A recommendation only: nothing is registered for you. Register for your chosen dates in u:space."
+                       ToolTipService.ToolTip="The plan avoids clashes with your lectures and with each other, and never suggests a date whose registration has closed." />
 
             <Grid ColumnSpacing="24" RowSpacing="8" Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
@@ -38,7 +39,7 @@
                     </StackPanel>
                     <Slider x:Name="GapSlider" Minimum="1" Maximum="61" Value="61" StepFrequency="1" TickFrequency="10" TickPlacement="Outside"
                             MaxWidth="560" HorizontalAlignment="Left" Width="560" ValueChanged="GapSlider_ValueChanged" />
-                    <TextBlock Text="1 day  ◂ close together  ·  far apart ▸  Maximum (as large as possible)" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="1 day  ◂ close together  ·  far apart ▸  Maximum (as large as possible)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
 
                 <!-- Optional date range (all strategies) -->

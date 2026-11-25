@@ -201,9 +201,9 @@ public sealed partial class PlannerPage : Page
         void Item(Brush b, string text) => sp.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 5,
-            Children = { new Border { Width = 4, Height = 14, CornerRadius = new CornerRadius(2), Background = b }, new TextBlock { Text = text, FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") } },
+            Children = { new Border { Width = 4, Height = 14, CornerRadius = new CornerRadius(2), Background = b }, new TextBlock { Text = text, FontSize = 12, Foreground = Res("TextFillColorSecondaryBrush") } },
         });
-        sp.Children.Add(new TextBlock { Text = "Gap colours:", FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") });
+        sp.Children.Add(new TextBlock { Text = "Gap colours:", FontSize = 12, Foreground = Res("TextFillColorSecondaryBrush") });
         Item(Res("SystemFillColorCriticalBrush"), "same day");
         Item(Res("SystemFillColorCautionBrush"), target is null ? "next day / up to 3 days" : "next day / tighter than ideal");
         if (target is not null) Item(Res("SystemFillColorSuccessBrush"), "about the ideal gap");
@@ -215,20 +215,20 @@ public sealed partial class PlannerPage : Page
     {
         var x = e.Chosen!;
         var local = x.Begin.ToLocalTime();
-        var date = new StackPanel { Width = 74, Spacing = 0, HorizontalAlignment = HorizontalAlignment.Center };
-        date.Children.Add(new TextBlock { Text = local.ToString("ddd", De).TrimEnd('.').ToUpperInvariant(), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Res("AccentTextFillColorPrimaryBrush") });
+        var date = new StackPanel { Width = 74, Spacing = 0, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        date.Children.Add(new TextBlock { Text = local.ToString("ddd", De).TrimEnd('.').ToUpperInvariant(), FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Palette.Solid(Palette.Exam) });
         date.Children.Add(new TextBlock { Text = local.Day.ToString(), FontSize = 32, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
         date.Children.Add(new TextBlock { Text = local.ToString("MMM yyyy", De), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Foreground = Res("TextFillColorSecondaryBrush") });
 
         var info = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
-        info.Children.Add(new TextBlock { Text = e.Course.Title, FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+        info.Children.Add(new TextBlock { Text = e.Course.Title, FontSize = 17, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         var badges = new List<string>();
         if (e.FixedReason == "registered") badges.Add("✅ registered");
         if (e.FixedReason == "pinned") badges.Add("📌 pinned");
         info.Children.Add(new TextBlock
         {
             Text = (x.TimeKnown ? $"{local:HH:mm} – {x.End.ToLocalTime():HH:mm}" : "time not published yet — whole day possible") + (badges.Count > 0 ? "     " + string.Join("  ", badges) : ""),
-            Foreground = Res("TextFillColorSecondaryBrush"),
+            FontSize = 14, Foreground = Res("TextFillColorSecondaryBrush"),
         });
         foreach (var w in e.Warnings) info.Children.Add(Warning(w, 0));
 
@@ -239,17 +239,17 @@ public sealed partial class PlannerPage : Page
         var g = new Grid { ColumnSpacing = 14 };
         g.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        g.Children.Add(date);
+        g.Children.Add(new Border { Child = date, CornerRadius = new CornerRadius(8), Padding = new Thickness(0, 6, 0, 6), Background = Palette.Tint(Palette.Exam, 0x22), VerticalAlignment = VerticalAlignment.Center });
         Grid.SetColumn(info, 1);
         g.Children.Add(info);
 
         var hasClash = e.Warnings.Any(w => w.StartsWith("⚠"));
         return new Border
         {
-            Child = g, Padding = new Thickness(16, 10, 16, 10), CornerRadius = new CornerRadius(8),
-            Background = Res("LayerFillColorDefaultBrush"),
-            BorderBrush = hasClash ? Res("SystemFillColorCriticalBrush") : e.FixedReason == "registered" ? Res("AccentFillColorDefaultBrush") : Res("DividerStrokeColorDefaultBrush"),
-            BorderThickness = new Thickness(hasClash || e.FixedReason == "registered" ? 2 : 1),
+            Child = g, Padding = new Thickness(12, 10, 16, 10), CornerRadius = new CornerRadius(8),
+            Background = Res("CardBackgroundFillColorDefaultBrush"),
+            BorderBrush = hasClash ? Res("SystemFillColorCriticalBrush") : Palette.Solid(Palette.Done),
+            BorderThickness = new Thickness(hasClash || e.FixedReason == "registered" ? 2 : 0),
         };
     }
 
@@ -260,7 +260,7 @@ public sealed partial class PlannerPage : Page
         var included = entry is not null;
         var stack = new StackPanel { Spacing = 4 };
 
-        var include = new CheckBox { IsChecked = included, Content = course.Title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, MinWidth = 0 };
+        var include = new CheckBox { IsChecked = included, Content = new TextBlock { Text = course.Title, FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap }, MinWidth = 0 };
         include.Click += (_, _) =>
         {
             var ex = A.Settings.PlannerExcluded;
@@ -268,35 +268,38 @@ public sealed partial class PlannerPage : Page
             A.Settings.PlannerExcluded = ex;
             Refresh();
         };
-        stack.Children.Add(include);
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        head.Children.Add(Palette.Chip("\uE8F1", Palette.Course, 28, 15));
+        head.Children.Add(include);
+        stack.Children.Add(head);
 
         if (entry is not null)
         {
             if (entry.Chosen is { } c)
                 stack.Children.Add(new TextBlock
                 {
-                    Text = "Recommended: " + Describe(c), FontSize = 14, Margin = new Thickness(28, 0, 0, 0), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true,
+                    Text = "Recommended: " + Describe(c), FontSize = 14, Margin = new Thickness(36, 0, 0, 0), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true,
                 });
             else
-                stack.Children.Add(new TextBlock { Text = "Not planned: " + entry.UnplannedReason, Margin = new Thickness(28, 0, 0, 0), Foreground = Res("SystemFillColorCautionBrush") });
+                stack.Children.Add(new TextBlock { Text = "Not planned: " + entry.UnplannedReason, FontSize = 14, Margin = new Thickness(36, 0, 0, 0), Foreground = Res("SystemFillColorCautionBrush") });
 
             if (entry.Options.Count > 0 && entry.FixedReason != "registered")
                 stack.Children.Add(Alternatives(entry, settings));
         }
         else
-            stack.Children.Add(new TextBlock { Text = "Excluded from the plan", Margin = new Thickness(28, 0, 0, 0), Opacity = 0.6 });
+            stack.Children.Add(new TextBlock { Text = "Excluded from the plan", FontSize = 14, Margin = new Thickness(36, 0, 0, 0), Opacity = 0.6 });
 
         return new Border
         {
-            Child = stack, Padding = new Thickness(14, 8, 14, 8), CornerRadius = new CornerRadius(8),
-            Background = Res("LayerFillColorDefaultBrush"), BorderBrush = Res("DividerStrokeColorDefaultBrush"), BorderThickness = new Thickness(1),
+            Child = stack, Padding = new Thickness(12, 8, 14, 8), CornerRadius = new CornerRadius(8),
+            Background = Res("CardBackgroundFillColorDefaultBrush"),
             Opacity = included ? 1 : 0.75,
         };
     }
 
     TextBlock Warning(string w, double left = 28) => new()
     {
-        Text = w, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(left, 0, 0, 0),
+        Text = w, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(left, 0, 0, 0),
         Foreground = w.StartsWith("⚠") ? Res("SystemFillColorCriticalBrush")
             : w.StartsWith("⏰") || w.StartsWith("Caution") || w.StartsWith("⏳") ? Res("SystemFillColorCautionBrush")
             : Res("TextFillColorSecondaryBrush"),
@@ -398,8 +401,8 @@ public sealed partial class PlannerPage : Page
             Children = { new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(3), Background = b }, new TextBlock { Text = text, FontSize = 12 } },
         };
         sp.Children.Add(Item(Res("AccentFillColorDefaultBrush"), "Recommended exam"));
-        sp.Children.Add(Item(new SolidColorBrush(Windows.UI.Color.FromArgb(0x88, 0x80, 0x80, 0x80)), "Other events (lectures etc.)"));
-        sp.Children.Add(Item(new SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0x6A, 0x5A, 0xCD)), "Exam day, time not published"));
+        sp.Children.Add(Item(new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, Palette.Course.R, Palette.Course.G, Palette.Course.B)), "Other events (lectures etc.)"));
+        sp.Children.Add(Item(new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, Palette.Exam.R, Palette.Exam.G, Palette.Exam.B)), "Exam day, time not published"));
         return sp;
     }
 
@@ -459,7 +462,7 @@ public sealed partial class PlannerPage : Page
             var d = days[i];
             var head = new TextBlock
             {
-                Text = $"{d.ToString("ddd", De).TrimEnd('.')} {d.Day}.{d.Month}.", FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 3),
+                Text = $"{d.ToString("ddd", De).TrimEnd('.')} {d.Day}.{d.Month}.", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 3),
                 FontWeight = examsThisWeek.Any(e => CalendarModel.DayOf(e.Chosen!.Begin) == d) ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal,
                 Foreground = d == today ? Res("AccentTextFillColorPrimaryBrush") : Res("TextFillColorSecondaryBrush"),
             };
@@ -479,7 +482,7 @@ public sealed partial class PlannerPage : Page
         var gutter = new Canvas();
         for (var h = (int)lo + 1; h < hi; h += 2)
         {
-            var t = new TextBlock { Text = $"{h:00}", FontSize = 9, Foreground = Res("TextFillColorSecondaryBrush") };
+            var t = new TextBlock { Text = $"{h:00}", FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") };
             Canvas.SetLeft(t, 12); Canvas.SetTop(t, (h - lo) * PxPerHour - 7);
             gutter.Children.Add(t);
         }
@@ -513,8 +516,8 @@ public sealed partial class PlannerPage : Page
             {
                 Width = width, Height = (hi - lo) * PxPerHour, Padding = new Thickness(3, 2, 3, 2), BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(0),
                 VerticalContentAlignment = VerticalAlignment.Top, HorizontalContentAlignment = HorizontalAlignment.Left,
-                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0x6A, 0x5A, 0xCD)),
-                Content = new TextBlock { Text = e.Course.Title + " (time TBA)", FontSize = 10, TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.CharacterEllipsis },
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, Palette.Exam.R, Palette.Exam.G, Palette.Exam.B)),
+                Content = new TextBlock { Text = e.Course.Title + " (time TBA)", FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxLines = 4, TextTrimming = TextTrimming.CharacterEllipsis },
             };
             var entry = e;
             band.Click += (_, _) => ShowExamFlyout(band, entry);
@@ -541,7 +544,7 @@ public sealed partial class PlannerPage : Page
                     Content = new TextBlock
                     {
                         Text = (entry.FixedReason == "registered" ? "✅ " : entry.FixedReason == "pinned" ? "📌 " : "") + entry.Course.Title + (h > 28 ? $"\n{x.Begin.ToLocalTime():HH:mm}" : ""),
-                        FontSize = 10, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush"),
+                        FontSize = 11, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush"),
                     },
                 };
                 btn.Click += (_, _) => ShowExamFlyout(btn, entry);
@@ -554,7 +557,7 @@ public sealed partial class PlannerPage : Page
                 var rect = new Border
                 {
                     Width = Math.Max(6, w - 2), Height = h, CornerRadius = new CornerRadius(3), IsHitTestVisible = false,
-                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x88, 0x80, 0x80, 0x80)),
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, Palette.Course.R, Palette.Course.G, Palette.Course.B)),
                 };
                 Canvas.SetLeft(rect, 2 + b.Column * w); Canvas.SetTop(rect, top);
                 canvas.Children.Add(rect);

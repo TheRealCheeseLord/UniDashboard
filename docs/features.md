@@ -1,11 +1,11 @@
-﻿# Features
+# Features
 
 ## Assignments
 
 ![Assignments](screenshots/assignments.png)
 
 - **Grouped list**: Overdue (only if not submitted), Today, This week, Later, and Submitted. Overdue and Submitted start collapsed (Submitted is open on the *Submitted* tab). Filter by all / open / submitted with the tabs above the list; a one-line summary shows how many are overdue or due today.
-- Each row shows the title, the course, a relative due time that turns red as the deadline approaches, and a dot when something changed since you last looked.
+- Each row has a small icon chip (teal for a normal assignment, amber when due within 3 days, red with a warning icon when overdue or due within 24 hours, green once submitted), the title, the course, a relative due time, and a dot when something changed since you last looked.
 - **Detail pane**: absolute and relative due date, submission status, grade, the description, attachment count (files are downloaded in Moodle, not here), **Open in Moodle** and **Generate .docx**.
 - Opening an assignment clears its "changed" dot.
 
@@ -21,7 +21,7 @@ Toast notifications are sent for: new assignment, due date changed, description 
 
 ![Calendar week](screenshots/calendar-week.png)
 
-One calendar for everything: lecture sessions (u:space), exam dates and registration windows, and assignment deadlines. Switch between **Week** and **Month**; the *Exams* toggle hides exam entries.
+One calendar for everything: lecture sessions (u:space), exam dates and registration windows, and assignment deadlines. Switch between **Day**, **Week** and **Month**; the *Exams* toggle hides exam entries. Entries are coloured by kind (see the legend next to the toggle): **lectures blue, exams coral, assignments teal**.
 
 ![Calendar month](screenshots/calendar-month.png)
 
@@ -33,7 +33,35 @@ One calendar for everything: lecture sessions (u:space), exam dates and registra
 
 ![Courses](screenshots/courses.png)
 
-Your u:space enrolments with type (VO, UE, VU…), semester, status (including waitlist position), lecturers, every session with its room, and all exam dates with their registration and deregistration windows. Your own registrations are ticked. A **History** section lists changes the app noticed (new course, status change, moved/cancelled sessions, changed exam dates).
+Your u:space enrolments, grouped by semester (newest first), each with an icon chip, its type (VO, UE, VU…) and a badge for waitlist or "not enrolled". The detail pane shows the status, your study, the lecturers, the registration window, every session with its room (blue clock icons; changed sessions are highlighted, cancelled ones struck through) and all exam dates (coral) with their registration and deregistration windows. Your own registrations are ticked. The u:find texts (description, assessment, examination, preconditions, literature) follow below. A **History** section lists changes the app noticed (new course, status change, moved/cancelled sessions, changed exam dates).
+
+## Study plan and section exams
+
+Not only courses have exams: curriculum sections such as **STEOP I / II** or a module have their own exam ("Modulprüfung"). UniDashboard finds your study in u:space, picks the matching curriculum (and version) in u:find, and imports the exam dates of every section that contains a course you are enrolled in. They show up in the **Calendar**, the **Exam planner**, the export and the reminders exactly like course exams, and your u:space registrations are ticked.
+
+![Study plan](screenshots/study-plan.png)
+
+The **Study plan** page shows the curriculum as a tree (curriculum, section, module, course) for the semester. Sections are amber folders, courses blue, exams coral; your own courses are bold. Switch between *Only my sections* and *Whole plan*, and choose the plan if you study more than one. Only sections you are enrolled in are fetched; the two newest semesters of your enrolments are considered.
+
+- **Click a row** to open its **detail panel** on the right: for a section its place in the plan, how many courses it contains, your courses in it and its exam dates; for an exam the date, room and registration state; for a course the number, type and whether you are enrolled. **Open in u:find** jumps to the matching u:find page (section, exam date or course); for courses you are enrolled in, **Show details** opens the course on the Courses page.
+- The **chevron** (not the row) expands or collapses a section.
+- The root is named after the study as u:find calls it, including the curriculum version, for example "Diplom Katholische Fachtheologie (011 [5] - Version 2026)".
+- Exam registration for sections is read from u:space like course exams. Section exams have no registration window, because u:find does not publish one.
+
+## Look and feel
+
+All pages share one design language, so the colour tells you what something is before you read it:
+
+| Kind | Colour |
+|---|---|
+| Courses, lectures, sessions | blue |
+| Exams | coral |
+| Curriculum sections | amber |
+| Assignments | teal |
+| Your study, registration windows | purple |
+| Enrolled, submitted, registered | green |
+
+Lists use icon chips, hover and selection highlights, larger text and soft card fills without outlines; detail views sit next to the list. The colours live in one place (`UniDashboard.App/Palette.cs`).
 
 ## Exam planner
 
@@ -45,7 +73,7 @@ For each course with several exam dates the planner picks one, according to your
 - never clashing with your lecture sessions or with another chosen exam,
 - never suggesting a date whose registration has already closed.
 
-You can pin a date, exclude a course, or restrict the range. Gaps between exams are colour-coded. **The planner is only a recommendation; nothing is registered for you.** Register for the dates in u:space yourself.
+You can pin a date, exclude a course, or restrict the range. Plan cards show a coral date tile (green outline when registered, red when the exam clashes); the course list below has a blue chip per course. Gaps between exams are colour-coded. **The planner is only a recommendation; nothing is registered for you.** Register for the dates in u:space yourself.
 
 ## Export
 

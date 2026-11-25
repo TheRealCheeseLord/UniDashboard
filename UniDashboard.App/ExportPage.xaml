@@ -4,21 +4,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Page.Resources>
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="20,16,20,18" />
         </Style>
-        <Style x:Key="CardTitle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}" />
+        <Style x:Key="CardTitle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}"><Setter Property="FontSize" Value="16" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
         <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
         </Style>
     </Page.Resources>
 
-    <Grid Padding="32,20,32,0" RowSpacing="12">
+    <Grid Padding="24,16,24,0" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -39,7 +37,7 @@
                 <!-- Step 1: what -->
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel Spacing="12">
-                        <TextBlock Text="What to export" Style="{StaticResource CardTitle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" CornerRadius="7" Background="#3056A0F0"><FontIcon Glyph="&#xE8B5;" FontSize="16" Foreground="#56A0F0" /></Border><TextBlock Text="What to export" Style="{StaticResource CardTitle}" /></StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="28">
                             <CheckBox x:Name="SessionsBox" Content="Lectures and course sessions" IsChecked="True" Click="Options_Changed" MinWidth="0" />
                             <CheckBox x:Name="ExamsBox" Content="Exams I'm registered for" IsChecked="True" Click="Options_Changed" MinWidth="0" />
@@ -66,7 +64,7 @@
                 <StackPanel x:Name="TabIcs" Spacing="12">
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="Save as a calendar file" Style="{StaticResource CardTitle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" CornerRadius="7" Background="#306CCB5F"><FontIcon Glyph="&#xE78C;" FontSize="16" Foreground="#6CCB5F" /></Border><TextBlock Text="Save as a calendar file" Style="{StaticResource CardTitle}" /></StackPanel>
                             <TextBlock Style="{StaticResource Hint}"
                                        Text="Import the file into Google Calendar, Outlook, Apple Calendar or any other app. Importing it again later updates the existing entries instead of creating duplicates." />
                             <StackPanel Orientation="Horizontal" Spacing="14">
@@ -82,7 +80,7 @@
                     </Border>
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Good to know" Style="{StaticResource CardTitle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" CornerRadius="7" Background="#30E8A838"><FontIcon Glyph="&#xE946;" FontSize="16" Foreground="#E8A838" /></Border><TextBlock Text="Good to know" Style="{StaticResource CardTitle}" /></StackPanel>
                             <TextBlock Style="{StaticResource Hint}"
                                        Text="u:find's own iCal link creates new random ids on every download, which is why importing it repeatedly duplicates everything. This file keeps the same id per entry, so it doesn't." />
                         </StackPanel>

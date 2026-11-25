@@ -38,7 +38,11 @@ public sealed partial class ExportPage
     Border GCard(string title, string? hint, params UIElement[] content)
     {
         var sp = new StackPanel { Spacing = 10 };
-        sp.Children.Add(new TextBlock { Text = title, Style = (Style)Resources["CardTitle"] });
+        sp.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 10,
+            Children = { Palette.Chip("\uE787", Palette.Exam, 30, 16), new TextBlock { Text = title, Style = (Style)Resources["CardTitle"] } },
+        });
         if (hint is not null) sp.Children.Add(new TextBlock { Text = hint, Style = (Style)Resources["Hint"] });
         foreach (var c in content) sp.Children.Add(c);
         return new Border { Style = (Style)Resources["CardStyle"], Child = sp };

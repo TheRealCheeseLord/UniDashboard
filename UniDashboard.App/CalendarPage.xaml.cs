@@ -35,6 +35,13 @@ public sealed partial class CalendarPage : Page
     public CalendarPage()
     {
         InitializeComponent();
+        foreach (var (color, text) in new[] { (Palette.Course, "Lectures"), (Palette.Exam, "Exams"), (Palette.Assignment, "Assignments") })
+            Legend.Children.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Spacing = 6,
+                Children = { new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(3), Background = Palette.Solid(color), VerticalAlignment = VerticalAlignment.Center },
+                             new TextBlock { Text = text, FontSize = 13, Foreground = Res("TextFillColorSecondaryBrush") } },
+            });
         _tick = DispatcherQueue.GetForCurrentThread().CreateTimer();
         _tick.Interval = TimeSpan.FromMinutes(1);
         _tick.Tick += (_, _) => Render();
@@ -281,7 +288,7 @@ public sealed partial class CalendarPage : Page
         var sp = new StackPanel { Padding = new Thickness(0, 4, 0, 4), Spacing = 2, Background = null };
         sp.Children.Add(new TextBlock
         {
-            Text = d.ToString("ddd", Culture).TrimEnd('.').ToUpperInvariant(), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
+            Text = d.ToString("ddd", Culture).TrimEnd('.').ToUpperInvariant(), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center,
             Foreground = today ? Res("AccentTextFillColorPrimaryBrush") : Res("TextFillColorSecondaryBrush"),
         });
         sp.Children.Add(num);
@@ -307,7 +314,7 @@ public sealed partial class CalendarPage : Page
         g.Background = Res("LayerFillColorDefaultBrush");
 
         for (var i = 0; i < n; i++) g.Children.Add(ColumnLine(1 + i, rows));
-        var label = new TextBlock { Text = "due / all-day", FontSize = 10, Margin = new Thickness(4, 4, 4, 0), TextWrapping = TextWrapping.Wrap, Foreground = Res("TextFillColorSecondaryBrush") };
+        var label = new TextBlock { Text = "due / all-day", FontSize = 11, Margin = new Thickness(4, 4, 4, 0), TextWrapping = TextWrapping.Wrap, Foreground = Res("TextFillColorSecondaryBrush") };
         Grid.SetRowSpan(label, rows);
         g.Children.Add(label);
 
@@ -328,7 +335,7 @@ public sealed partial class CalendarPage : Page
 
     static Button SmallButton(string text) => new()
     {
-        Content = new TextBlock { Text = text, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis },
+        Content = new TextBlock { Text = text, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis },
         Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(2, 1, 2, 1), HorizontalAlignment = HorizontalAlignment.Stretch,
         HorizontalContentAlignment = HorizontalAlignment.Left, Background = null, BorderThickness = new Thickness(0),
     };
@@ -344,7 +351,7 @@ public sealed partial class CalendarPage : Page
             text = (item.Submitted ? "✅ " : "") + (compact ? "" : Time(due) + "  ") + item.Title;
             (bg, fg) = item.Submitted ? (Res("SubtleFillColorSecondaryBrush"), Res("TextFillColorSecondaryBrush"))
                 : item.Overdue ? (Res("SystemFillColorCriticalBackgroundBrush"), Res("TextFillColorPrimaryBrush"))
-                : (Res("SystemFillColorCautionBackgroundBrush"), Res("TextFillColorPrimaryBrush"));
+                : (Palette.Tint(Palette.Assignment, 0x45), Res("TextFillColorPrimaryBrush"));
         }
         else if (item.Kind is MetaKind.Exam or MetaKind.ExamWindow)
         {
@@ -354,8 +361,8 @@ public sealed partial class CalendarPage : Page
                 : item.Kind == MetaKind.ExamWindow
                     ? (item.Registered ? Res("SubtleFillColorSecondaryBrush") : Res("SystemFillColorSuccessBackgroundBrush"),
                        item.Registered ? Res("TextFillColorSecondaryBrush") : Res("TextFillColorPrimaryBrush"))
-                    : item.Registered ? (Res("AccentFillColorDefaultBrush"), Res("TextOnAccentFillColorPrimaryBrush"))
-                    : (Res("SystemFillColorAttentionBackgroundBrush"), Res("TextFillColorPrimaryBrush"));
+                    : item.Registered ? (Palette.Solid(Palette.Exam), Res("TextOnAccentFillColorPrimaryBrush"))
+                    : (Palette.Tint(Palette.Exam, 0x45), Res("TextFillColorPrimaryBrush"));
         }
         else
         {
@@ -363,7 +370,7 @@ public sealed partial class CalendarPage : Page
             var st = item.Event?.Status ?? "active";
             (bg, fg) = st is "possible" or "removed"
                 ? (Res("SubtleFillColorSecondaryBrush"), Res("TextFillColorSecondaryBrush"))
-                : (Res("AccentFillColorDefaultBrush"), Res("TextOnAccentFillColorPrimaryBrush"));
+                : (Palette.Solid(item.Event?.Source == "exam" ? Palette.Exam : Palette.Course), Res("TextOnAccentFillColorPrimaryBrush"));
             if (st == "possible") text = "? " + text;
         }
         var b = new Button
@@ -391,7 +398,7 @@ public sealed partial class CalendarPage : Page
         var gutter = new Canvas();
         for (var h = 1; h < 24; h++)
         {
-            var t = new TextBlock { Text = $"{h:00}:00", FontSize = 10, Foreground = Res("TextFillColorSecondaryBrush") };
+            var t = new TextBlock { Text = $"{h:00}:00", FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") };
             Canvas.SetLeft(t, 8); Canvas.SetTop(t, h * HourH - 8);
             gutter.Children.Add(t);
         }
@@ -437,16 +444,16 @@ public sealed partial class CalendarPage : Page
                 TextDecorations = st == "removed" ? Windows.UI.Text.TextDecorations.Strikethrough : Windows.UI.Text.TextDecorations.None,
             });
             if (h > 34 && b.Event.Note is { Length: > 0 } nt && st is not "active")
-                sp.Children.Add(new TextBlock { Text = nt, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg });
+                sp.Children.Add(new TextBlock { Text = nt, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = fg });
             if (h > 34)
-                sp.Children.Add(new TextBlock { Text = $"{Time(b.Event.Start)} – {Time(b.Event.End)}", FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
+                sp.Children.Add(new TextBlock { Text = $"{Time(b.Event.Start)} – {Time(b.Event.End)}", FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
             if (h > 50 && !string.IsNullOrEmpty(b.Event.Location))
-                sp.Children.Add(new TextBlock { Text = b.Event.Location, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
+                sp.Children.Add(new TextBlock { Text = b.Event.Location, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Res("TextOnAccentFillColorPrimaryBrush") });
             var btn = new Button
             {
                 Content = sp, Width = Math.Max(10, w - 2), Height = h, Padding = new Thickness(5, 2, 5, 2),
                 HorizontalContentAlignment = HorizontalAlignment.Left, VerticalContentAlignment = VerticalAlignment.Top,
-                Background = faded ? Res("SubtleFillColorSecondaryBrush") : Res("AccentFillColorDefaultBrush"),
+                Background = faded ? Res("SubtleFillColorSecondaryBrush") : Palette.Solid(b.Event.Source == "exam" ? Palette.Exam : Palette.Course),
                 BorderBrush = st is "moved" or "changed" ? Res("SystemFillColorCautionBrush") : faded ? Res("TextFillColorSecondaryBrush") : null,
                 BorderThickness = st is "moved" or "changed" or "removed" or "ghost" ? new Thickness(2) : st == "possible" ? new Thickness(1) : new Thickness(0),
                 CornerRadius = new CornerRadius(4), Opacity = st == "ghost" ? 0.55 : st == "removed" ? 0.75 : st == "possible" ? 0.9 : 1,
@@ -495,7 +502,7 @@ public sealed partial class CalendarPage : Page
         {
             var t = new TextBlock
             {
-                Text = gridStart.AddDays(c).ToString("ddd", Culture).TrimEnd('.').ToUpperInvariant(), FontSize = 11, Margin = new Thickness(6, 2, 0, 4),
+                Text = gridStart.AddDays(c).ToString("ddd", Culture).TrimEnd('.').ToUpperInvariant(), FontSize = 12, Margin = new Thickness(6, 2, 0, 4),
                 Foreground = Res("TextFillColorSecondaryBrush"),
             };
             Grid.SetColumn(t, c);
@@ -616,8 +623,9 @@ public sealed partial class CalendarPage : Page
             else sp.Children.Add(T("Registration window not published yet", secondary: true));
             if (!string.IsNullOrWhiteSpace(x.Room)) sp.Children.Add(T("📍 " + x.Room));
             if (!string.IsNullOrWhiteSpace(x.When)) sp.Children.Add(T(DocxGenerator.HtmlToPlainText(x.When!), secondary: true));
-            var toCourse = new Button { Content = "Open course" };
-            toCourse.Click += (_, _) => { fly.Hide(); A.Window?.HandleCommandLine("--course=" + x.EnrolmentKey); };
+            var isSection = x.EnrolmentKey.StartsWith(UniDashboard.Core.Univie.EnrolmentRecord.SectionPrefix, StringComparison.Ordinal);
+            var toCourse = new Button { Content = isSection ? "Open study plan" : "Open course" };
+            toCourse.Click += (_, _) => { fly.Hide(); A.Window?.HandleCommandLine(isSection ? "--studyplan" : "--course=" + x.EnrolmentKey); };
             sp.Children.Add(toCourse);
         }
         else if (item.Event is { } e)

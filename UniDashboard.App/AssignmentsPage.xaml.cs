@@ -23,6 +23,9 @@ public class AssignmentRow
     public string Course => Model.CourseName;
     public string DueText { get; init; } = "";
     public Brush DueBrush { get; init; } = null!;
+    public string Glyph { get; init; } = "\uE8A5";
+    public Brush ChipFg { get; init; } = null!;
+    public Brush ChipBg { get; init; } = null!;
     public Visibility SubmittedVisibility => Model.Submitted ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UnseenVisibility => Model.UnseenChange ? Visibility.Visible : Visibility.Collapsed;
 }
@@ -64,6 +67,25 @@ public sealed partial class AssignmentsPage : Page
     }
 
     static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+
+    // Assignments are teal; urgency overrides (red = overdue / within 24 h, amber = within 3 days, green = submitted).
+    static readonly Windows.UI.Color AssignmentColor = Palette.Assignment;
+    static readonly Windows.UI.Color UrgentColor = Palette.Exam;
+    static readonly Windows.UI.Color SoonColor = Palette.Warning;
+    static readonly Windows.UI.Color DoneColor = Palette.Done;
+
+    static (string Glyph, Windows.UI.Color Color) Kind(Assignment a, DateTimeOffset now)
+    {
+        if (a.Submitted) return ("\uE73E", DoneColor);
+        if (a.DueAt is { } due)
+        {
+            if (due - now <= TimeSpan.FromHours(24)) return ("\uE7BA", UrgentColor);
+            if (due - now <= TimeSpan.FromDays(3)) return ("\uE823", SoonColor);
+        }
+        return ("\uE8A5", AssignmentColor);
+    }
+
+    static SolidColorBrush Solid(Windows.UI.Color c, byte alpha = 255) => new(Windows.UI.Color.FromArgb(alpha, c.R, c.G, c.B));
 
     /// <summary>Due-time colour shared by the list and the detail pane: red = overdue / within 24 h, amber = within 3 days, else muted.</summary>
     static Brush DueBrush(Assignment a, DateTimeOffset now)
@@ -113,7 +135,11 @@ public sealed partial class AssignmentsPage : Page
         {
             var items = all.Where(pred).ToList();
             if (items.Count == 0) continue;
-            var rows = items.Select(a => new AssignmentRow { Model = a, DueText = RelativeDue(a.DueAt, now), DueBrush = DueBrush(a, now) }).ToList();
+            var rows = items.Select(a =>
+            {
+                var (glyph, color) = Kind(a, now);
+                return new AssignmentRow { Model = a, DueText = RelativeDue(a.DueAt, now), DueBrush = DueBrush(a, now), Glyph = glyph, ChipFg = Solid(color), ChipBg = Solid(color, 0x30) };
+            }).ToList();
             var list = new ListView
             {
                 SelectionMode = ListViewSelectionMode.Single,
@@ -140,7 +166,7 @@ public sealed partial class AssignmentsPage : Page
         content.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         content.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         content.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-        content.Children.Add(new TextBlock { Text = name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        content.Children.Add(new TextBlock { Text = name, FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Foreground = Res("TextFillColorSecondaryBrush") });
         var counter = new TextBlock { Text = count.ToString(), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Foreground = Res("TextFillColorSecondaryBrush") };
         Grid.SetColumn(counter, 1);
         content.Children.Add(counter);

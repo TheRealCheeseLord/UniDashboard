@@ -1,4 +1,4 @@
-﻿# UniDashboard
+# UniDashboard
 
 **A native Windows dashboard for University of Vienna students.** It pulls your Moodle assignments, your u:space course registrations and your u:find timetables into one fast desktop app. It tells you when something changes, and it can mirror your timetable into Google Calendar or an `.ics` file without ever creating duplicates.
 
@@ -12,8 +12,9 @@
 |---|---|
 | **Assignments** | Every Moodle assignment, grouped *Overdue / Today / This week / Later / Submitted*, with relative due times, submission status and a link to the Moodle page. |
 | **Change history** | Every change to an assignment (due date, description, grade, attachments) is stored as a snapshot and shown as a coloured diff. |
-| **Calendar** | Week and month view combining lectures, exams, registration windows and assignment deadlines. Moved sessions show as ghosts at the old time, cancelled ones are struck through. |
-| **Courses** | Your u:space enrolments with sessions, rooms, lecturers, waitlist position and all exam dates. |
+| **Calendar** | Day, week and month view combining lectures (blue), exams (coral), registration windows and assignment deadlines (teal). Moved sessions show as ghosts at the old time, cancelled ones are struck through. |
+| **Courses** | Your u:space enrolments, grouped by semester, with sessions, rooms, lecturers, waitlist position and all exam dates. |
+| **Study plan** | Your curriculum from u:find as a tree with the exams of sections like STEOP I/II and modules (not just course exams), a detail panel and one-click links to u:find. Section exams also appear in the calendar and the planner. |
 | **Exam planner** | Suggests an exam date per course (as soon / as late / as spread out as possible) that avoids clashes with lectures and with each other. It only recommends; nothing is registered for you. |
 | **Export** | Save an `.ics` file, or sync to a Google Calendar of your choice. Stable event ids mean re-importing updates entries instead of duplicating them. |
 | **Notifications** | A hidden background task syncs every N minutes and raises Windows toasts for new assignments, moved sessions, exam registration windows and more. Every kind can be switched off. |
@@ -32,12 +33,16 @@
 <td><b>Courses</b><br><img src="docs/screenshots/courses.png"></td>
 </tr>
 <tr>
+<td><b>Study plan</b><br><img src="docs/screenshots/study-plan.png"></td>
 <td><b>Exam planner</b><br><img src="docs/screenshots/exam-planner.png"></td>
-<td><b>Export to Google Calendar / .ics</b><br><img src="docs/screenshots/export-google.png"></td>
 </tr>
 <tr>
+<td><b>Export to Google Calendar / .ics</b><br><img src="docs/screenshots/export-google.png"></td>
 <td><b>Notification settings</b><br><img src="docs/screenshots/settings-notifications.png"></td>
+</tr>
+<tr>
 <td><b>Background sync settings</b><br><img src="docs/screenshots/settings-sync.png"></td>
+<td><b>About and updates</b><br><img src="docs/screenshots/settings-about.png"></td>
 </tr>
 </table>
 

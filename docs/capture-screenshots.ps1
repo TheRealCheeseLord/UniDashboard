@@ -89,6 +89,12 @@ try {
     Start-Process $Exe -ArgumentList '--planner' -Wait; Start-Sleep -Seconds 1
     Shot 'calendar-month'   '--calendar=month'
     Shot 'courses'          '--course=100004-1-2026W'
+    Start-Process $Exe -ArgumentList '--studyplan' -Wait; Start-Sleep -Seconds 2
+    # Select the registered section exam so the detail panel is filled (row position relative to the window).
+    $rr = New-Object Win+RECT; [void][Win]::DwmGetWindowAttribute($h, 9, [ref]$rr, [Runtime.InteropServices.Marshal]::SizeOf($rr))
+    [Windows.Forms.Cursor]::Position = New-Object Drawing.Point ($rr.L + 560), ($rr.T + 330)
+    [Win]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); [Win]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 500
+    Shot 'study-plan'       '' 1
     Shot 'exam-planner'     '--planner'
     Shot 'export-ics'       '--export=ics'
     ClickByName 'Sync to Google Calendar'; Shot 'export-google' '' 1

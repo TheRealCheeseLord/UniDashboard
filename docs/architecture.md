@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 ```
 UniDashboard.slnx
@@ -29,9 +29,9 @@ The App and the Agent both reference Core and share one SQLite database. A named
 | `Auth/` | `AuthService` obtains the Moodle token: saved web session, else scripted single sign-on with the stored u:account, else (app only) the sign-in window; `TokenStore` keeps the token DPAPI-encrypted and the u:account password in Credential Manager |
 | `Web/` | The purpose-built HTTP layer that replaced a browser driver: `WebSession` (own cookie jar, https only, allow-listed hosts, bounded manual redirects, size-capped bodies), `HtmlForms` (tiny form/link scanner, no HTML-parser dependency), `UnivieLogin` (scripted Shibboleth / Keycloak sign-in), `IInteractiveLogin` (implemented by the app's WebView2 sign-in window) |
 | `Api/` | `MoodleClient`: courses, assignments, submission status |
-| `Uspace/`, `Ufind/` | Enrolments, sessions and exams from u:space; static course info from u:find |
+| `Uspace/`, `Ufind/` | Enrolments, sessions, exams and the study list from u:space; static course info and the curriculum tree (`CurriculumClient`, scraped from public u:find pages, versioned by `CurrentSchema`) from u:find |
 | `Sync/` | `SyncService` (assignments), `ChangeDetector` (normalise, hash, classify changes), `NotificationRules` |
-| `Univie/` | Course/session/exam models, `SessionDiffer` and `ExamDiffer` (moved, changed, cancelled…), `UnivieSyncService` |
+| `Univie/` | Course/session/exam models, `SessionDiffer` and `ExamDiffer` (moved, changed, cancelled…), `UnivieSyncService`, and `UnivieSyncService.Sections` (section exams) with `CurriculumMatcher` (picks the study's curriculum from u:space studies and the course chapter paths) |
 | `Calendar/` | The unified calendar model shown by the app |
 | `Planning/` | `ExamPlanner`: picks exam dates under clash/registration constraints |
 | `Export/` | `ExportBuilder`, `IcsWriter` (stable UIDs), `SyncPlanner` (pure decision logic), `ImportedEventMatcher` |
@@ -39,6 +39,14 @@ The App and the Agent both reference Core and share one SQLite database. A named
 | `Docx/` | Template filling for Word documents (merges split runs before replacing placeholders) |
 | `Database.cs` | SQLite in WAL mode, short transactions; migrations by `CREATE TABLE IF NOT EXISTS` |
 | `AgentScheduler.cs` | Registers the hidden Task Scheduler task (logon + every N minutes, only while logged on) |
+
+## Section exams and the study plan
+
+Exams of curriculum sections (STEOP I/II, modules) are stored as **synthetic enrolments** (`EnrolmentRecord.SectionKey`, `section:{semester}:{u:find path id}`) with their `ExamRecord`s in the normal tables, so calendar, planner, export, reminders and `ExamDiffer` work unchanged. `Database.GetEnrolments(includeSections: false)` hides them from course lists and sync bookkeeping. The u:find curriculum trees are cached in the `curriculum_trees` table (refreshed every 6 hours or when the parser version rises) and drive the Study plan page. The sync matches your u:space study to a curriculum by study code, version mark and start year.
+
+## UI structure
+
+Pages are code-light XAML plus code-built rows. `UniDashboard.App/Palette.cs` holds the colour language (one colour per kind of thing) and a helper for icon chips; pages must take colours from there. List/detail pages (Assignments, Courses, Study plan) use soft rows with hover and selection highlights; form pages (Settings, Export) use soft cards with an icon in each title.
 
 ## Design principles
 
