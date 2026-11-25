@@ -128,6 +128,41 @@ static class DemoSeed
             db.SaveEnrolment(rec, sessions, JsonSerializer.Serialize(new { e.Title, e.Type, Semester = "2026W", e.Status }), "New", exams);
             ei++;
         }
+        // ---------- study plan: a fake curriculum with one section exam (STEOP)
+        var root = new UniDashboard.Core.Ufind.CurriculumNode { PathId = "9000", Title = "Bachelor Demo Studies (033 600 - Version 2026)", Schema = UniDashboard.Core.Ufind.CurriculumClient.CurrentSchema };
+        var steop = new UniDashboard.Core.Ufind.CurriculumNode
+        {
+            PathId = "9001", Title = "STEOP Orientation phase (12 ECTS)",
+            Courses = [new("100.001", "VO", "Analysis I"), new("100.003", "VO", "Linear Algebra"), new("100.009", "VO", "Introduction to Studying")],
+            Exams = [new("9001", "01-0001", "Orientation exam", [])],
+        };
+        var algo = new UniDashboard.Core.Ufind.CurriculumNode
+        {
+            PathId = "9002", Title = "Module Algorithms (9 ECTS)",
+            Courses = [new("100.004", "VU", "Introduction to Algorithms"), new("100.020", "VO", "Data Structures")],
+            Exams = [new("9002", "01-0002", "Module exam Algorithms", [])],
+        };
+        var stats = new UniDashboard.Core.Ufind.CurriculumNode { PathId = "9003", Title = "Module Statistics (6 ECTS)", Courses = [new("100.005", "VO", "Statistics for Natural Sciences")] };
+        var first = new UniDashboard.Core.Ufind.CurriculumNode { PathId = "9010", Title = "First study section (60 ECTS)", Children = [steop, algo, stats] };
+        root.Children.Add(first);
+        db.SaveCurriculumTree("9000", "2026W", "Bachelor Demo Studies", JsonSerializer.Serialize(root), now);
+        var section = new EnrolmentRecord
+        {
+            Key = EnrolmentRecord.SectionKey("2026W", "9001"), LvNr = "", GroupNr = "", Semester = "2026W", Title = steop.Title, Type = "SEC", Status = "ANGEMELDET",
+            StudyName = "Bachelor Demo Studies", ContentHash = "demo-section", LastSeenAt = now, Active = true,
+        };
+        var secExams = new List<ExamRecord>();
+        foreach (var (offset, idx) in new[] { (21, 1), (45, 2) })
+        {
+            var b = At(offset, 9);
+            secExams.Add(new ExamRecord
+            {
+                Key = $"{section.Key}|s{idx}", EnrolmentKey = section.Key, ExtId = "sect:s" + idx, Title = "Orientation exam", Begin = b, End = b.AddHours(2), TimeKnown = true,
+                Room = "HS 1, Main Building", Registered = idx == 1, FirstSeenAt = now, LastChangedAt = now, Hash = "s" + idx,
+            });
+        }
+        db.SaveEnrolment(section, [], "{}", "New", secExams);
+
         Console.WriteLine($"Demo data written to {dir}");
     }
 

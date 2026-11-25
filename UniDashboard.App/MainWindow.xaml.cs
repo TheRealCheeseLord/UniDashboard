@@ -26,10 +26,43 @@ public sealed partial class MainWindow : Window
 
     public IntPtr Hwnd => WinRT.Interop.WindowNative.GetWindowHandle(this);
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+
+    /// <summary>
+    /// Activates the window and really brings it to the front. Plain <c>Activate()</c> can leave a freshly started window behind
+    /// others because Windows restricts foreground changes; attaching to the foreground thread's input queue lifts that restriction.
+    /// </summary>
+    public void BringToFront()
+    {
+        Activate();
+        var h = Hwnd;
+        if (IsIconic(h)) ShowWindow(h, 9);   // SW_RESTORE
+        var fg = GetForegroundWindow();
+        var fgThread = fg == IntPtr.Zero ? 0 : GetWindowThreadProcessId(fg, out _);
+        var me = GetCurrentThreadId();
+        var attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+        try
+        {
+            // A synthetic Alt press satisfies Windows' "last input" rule for foreground changes.
+            keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            SetForegroundWindow(h);
+        }
+        finally { if (attached) AttachThreadInput(me, fgThread, false); }
+        // Raise above other windows even if the focus change was refused, then drop the always-on-top flag again.
+        if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter pr) { pr.IsAlwaysOnTop = true; pr.IsAlwaysOnTop = false; }
+    }
+
     void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
-        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), "planner" => typeof(PlannerPage), "export" => typeof(ExportPage), _ => typeof(AssignmentsPage) };
+        var page = tag switch { "settings" => typeof(SettingsPage), "calendar" => typeof(CalendarPage), "courses" => typeof(CoursesPage), "planner" => typeof(PlannerPage), "studyplan" => typeof(StudyPlanPage), "export" => typeof(ExportPage), _ => typeof(AssignmentsPage) };
         object? param = tag switch { "assignments" => _pendingAssignment, "courses" => _pendingCourse, _ => null };
         if (tag == "courses") _pendingCourse = null;
         ContentFrame.Navigate(page, param);
@@ -46,6 +79,10 @@ public sealed partial class MainWindow : Window
                 if (ContentFrame.Content is AssignmentsPage page) page.ShowAssignment(id);
                 else if (Nav.SelectedItem == NavItem("assignments")) ContentFrame.Navigate(typeof(AssignmentsPage), id);
                 else Nav.SelectedItem = NavItem("assignments");
+            }
+            else if (part == "--studyplan" || part.StartsWith("--course=" + UniDashboard.Core.Univie.EnrolmentRecord.SectionPrefix))
+            {
+                Nav.SelectedItem = NavItem("studyplan");   // curriculum sections have no course page
             }
             else if (part.StartsWith("--course="))
             {

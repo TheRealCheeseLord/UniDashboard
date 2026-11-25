@@ -35,6 +35,7 @@ public class Database
             time_known INTEGER, when_text TEXT, room TEXT, enroll_from INTEGER, enroll_to INTEGER, disenroll_until INTEGER, registered INTEGER,
             hash TEXT, status INTEGER, change INTEGER, first_seen_at INTEGER, last_changed_at INTEGER, prev_begin INTEGER, prev_enroll_from INTEGER, prev_enroll_to INTEGER);
         CREATE INDEX IF NOT EXISTS idx_exams_enr ON exams(enrolment_key);
+        CREATE TABLE IF NOT EXISTS curriculum_trees(path_id TEXT, semester TEXT, study_name TEXT, fetched_at INTEGER, json TEXT, PRIMARY KEY(path_id, semester));
         CREATE TABLE IF NOT EXISTS exam_registrations_raw(shape TEXT PRIMARY KEY, first_seen_at INTEGER, sample_json TEXT);
         CREATE TABLE IF NOT EXISTS enrolment_snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT, enrolment_key TEXT, taken_at INTEGER, hash TEXT, json TEXT, change_kinds TEXT);
         CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, title TEXT, start_at INTEGER, end_at INTEGER, all_day INTEGER,
@@ -250,7 +251,8 @@ public class Database
         };
     }
 
-    public List<EnrolmentRecord> GetEnrolments(bool activeOnly = true)
+    /// <param name="includeSections">Also the synthetic curriculum-section enrolments (<see cref="EnrolmentRecord.IsSection"/>); off by default so course lists and enrolment bookkeeping never see them.</param>
+    public List<EnrolmentRecord> GetEnrolments(bool activeOnly = true, bool includeSections = false)
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
@@ -258,6 +260,37 @@ public class Database
         using var r = cmd.ExecuteReader();
         var l = new List<EnrolmentRecord>();
         while (r.Read()) l.Add(ReadEnr(r));
+        return includeSections ? l : l.Where(e => !e.IsSection).ToList();
+    }
+
+    /// <summary>Stores the u:find study plan tree of one curriculum and semester (JSON of <c>CurriculumNode</c>).</summary>
+    public void SaveCurriculumTree(string pathId, string semester, string studyName, string json, DateTimeOffset at)
+    {
+        using var c = Open();
+        Exec(c, "INSERT OR REPLACE INTO curriculum_trees(path_id,semester,study_name,fetched_at,json) VALUES($p,$s,$n,$f,$j)",
+            ("$p", pathId), ("$s", semester), ("$n", studyName), ("$f", at.ToUnixTimeSeconds()), ("$j", json));
+    }
+
+    public (string StudyName, string Json, DateTimeOffset FetchedAt)? GetCurriculumTree(string pathId, string semester)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT study_name,json,fetched_at FROM curriculum_trees WHERE path_id=$p AND semester=$s";
+        cmd.Parameters.AddWithValue("$p", pathId);
+        cmd.Parameters.AddWithValue("$s", semester);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetString(0), r.GetString(1), DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(2))) : null;
+    }
+
+    /// <summary>All stored study plan trees: (path, semester, study name, json), newest semester first.</summary>
+    public List<(string PathId, string Semester, string StudyName, string Json)> GetCurriculumTrees()
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT path_id,semester,study_name,json FROM curriculum_trees ORDER BY semester DESC, study_name";
+        using var r = cmd.ExecuteReader();
+        var l = new List<(string, string, string, string)>();
+        while (r.Read()) l.Add((r.GetString(0), r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2), r.GetString(3)));
         return l;
     }
 
@@ -411,7 +444,7 @@ public class Database
     /// <summary>Exams of active enrolments whose date or registration window touches [from,to).</summary>
     public List<(ExamRecord Exam, EnrolmentRecord Enrolment)> GetExamsBetween(DateTimeOffset from, DateTimeOffset to)
     {
-        var enr = GetEnrolments().ToDictionary(e => e.Key);
+        var enr = GetEnrolments(includeSections: true).ToDictionary(e => e.Key);
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = $"""

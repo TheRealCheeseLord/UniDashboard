@@ -25,6 +25,14 @@ public class EnrolmentRecord
     public DateTimeOffset LastSeenAt { get; set; }
     public bool Active { get; set; } = true;         // false once u:space no longer lists the enrolment
     public bool UnseenChange { get; set; }
+
+    /// <summary>
+    /// Curriculum sections (STEOP I, modules…) with their own exams are stored as synthetic enrolments so exams, calendar,
+    /// planner, export and reminders treat them like courses. Key = "section:{semester}:{u:find path id}".
+    /// </summary>
+    public const string SectionPrefix = "section:";
+    public bool IsSection => Key.StartsWith(SectionPrefix, StringComparison.Ordinal);
+    public static string SectionKey(string semester, string pathId) => $"{SectionPrefix}{semester}:{pathId}";
 }
 
 /// <summary>

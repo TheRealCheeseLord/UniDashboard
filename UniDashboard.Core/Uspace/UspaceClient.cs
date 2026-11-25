@@ -29,8 +29,17 @@ public record EnrolmentDto(
 /// <summary>An exam registration ("Prüfungsanmeldung") of the student. Parsed defensively: the exact JSON shape is unverified.</summary>
 public record ExamRegistrationDto(string LvNr, string Semester, string ExtId, DateTimeOffset? Begin, DateTimeOffset? End, string? Room, string Status, string RawJson);
 
+/// <summary>
+/// One study ("Studium") of the student from u:space <c>studienuebersicht /v1/uebersicht/studien</c>.
+/// <c>Kennzahlen</c> are the study codes (e.g. "011" or "033","521"); <c>Zusatz</c> are the curriculum version marks
+/// (<c>zusatzkennung</c>, the "[5]" in u:find's "011 [5] - Version 2026").
+/// </summary>
+public record StudyDto(string Name, string Status, List<string> Kennzahlen, List<string> Zusatz, int? BeginYear, long? ExtId);
+
 public interface IEnrolmentSource
 {
+    /// <summary>The student's studies seen in the last <see cref="GetEnrolmentsAsync"/> call (empty when unavailable).</summary>
+    IReadOnlyList<StudyDto> LastStudies => [];
     /// <summary>Exam registrations seen in the last <see cref="GetEnrolmentsAsync"/> call.</summary>
     IReadOnlyList<ExamRegistrationDto> LastExamRegistrations { get; }
     Task<List<EnrolmentDto>> GetEnrolmentsAsync(bool headless, CancellationToken ct = default);
@@ -41,11 +50,13 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
     const string Base = "https://uspace.univie.ac.at";
     const string Page = Base + "/web/studium/anmeldeuebersicht";
     const string Target = "as-studierende-anmeldeuebersicht";
+    const string StudyTarget = "studienuebersicht";
     static readonly Regex Done = new(@"^https://uspace\.univie\.ac\.at/(?!c/portal/login)");
 
     readonly string _sessionPath = sessionPath ?? Path.Combine(Paths.Root, "uspace-session.bin");
     public string? LastMethod { get; private set; }
     public IReadOnlyList<ExamRegistrationDto> LastExamRegistrations { get; private set; } = [];
+    public IReadOnlyList<StudyDto> LastStudies { get; private set; } = [];
 
     /// <summary>Visible login window; set by the App. The Agent leaves it null and never shows a browser.</summary>
     public IInteractiveLogin? Interactive { get; set; }
@@ -95,17 +106,56 @@ public class UspaceClient(AppSettings settings, string? sessionPath = null) : IE
 
             SaveSession(web.Export());   // keep rolling cookies fresh
             LastExamRegistrations = ParseExamRegistrations(list);
+            LastStudies = await TryGetStudiesAsync(web, csrf, ct);
             return ParseEnrolments(list);
         }
         // Network trouble (no HTTP status) or a refused request: treat as "no session"; real API errors (with a status) propagate.
         catch (Exception e) when (e is HttpRequestException { StatusCode: null } or WebSecurityException or TaskCanceledException && !ct.IsCancellationRequested) { return null; }
     }
 
-    static async Task<JsonDocument?> CallAsync(WebSession web, string csrf, string method, string path, string? body, CancellationToken ct)
+    /// <summary>Best effort: the study list only adds curriculum context, so any failure just yields an empty list.</summary>
+    static async Task<List<StudyDto>> TryGetStudiesAsync(WebSession web, string csrf, CancellationToken ct)
+    {
+        try
+        {
+            using var doc = await CallAsync(web, csrf, "GET", "/v1/uebersicht/studien", null, ct, StudyTarget);
+            return doc is null ? [] : ParseStudies(doc);
+        }
+        catch (Exception e) when (e is HttpRequestException or JsonException) { return []; }
+    }
+
+    /// <summary>Parses the study list defensively (unknown/missing fields are skipped).</summary>
+    public static List<StudyDto> ParseStudies(JsonDocument doc)
+    {
+        var list = new List<StudyDto>();
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return list;
+        foreach (var s in doc.RootElement.EnumerateArray())
+        {
+            if (s.ValueKind != JsonValueKind.Object) continue;
+            string? Str(JsonElement e, string n) => e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            var kz = new List<string>();
+            foreach (var n in new[] { "kennzahl1", "kennzahl2", "kennzahl3" })
+                if (Str(s, n) is { Length: > 0 } k) kz.Add(k.Trim());
+            var zus = new List<string>();
+            if (s.TryGetProperty("abschnitte", out var ab) && ab.ValueKind == JsonValueKind.Array)
+                foreach (var a in ab.EnumerateArray())
+                    if (a.TryGetProperty("studienelement", out var el) && el.ValueKind == JsonValueKind.Object
+                        && (Str(el, "zusatzkennung") ?? (el.TryGetProperty("zusatzkennung", out var zn) && zn.ValueKind == JsonValueKind.Number ? zn.ToString() : null)) is { Length: > 0 } z
+                        && !zus.Contains(z)) zus.Add(z.Trim());
+            int? year = s.TryGetProperty("studienbeginn", out var sb) && sb.ValueKind == JsonValueKind.Number && sb.TryGetInt64(out var ms)
+                ? DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().Year : null;
+            long? id = s.TryGetProperty("extStudienverlaufId", out var ei) && ei.ValueKind == JsonValueKind.Number && ei.TryGetInt64(out var l) ? l : null;
+            if (kz.Count == 0) continue;
+            list.Add(new(Str(s, "studienrichtungBezeichnung") ?? "", Str(s, "studienStatus") ?? "", kz, zus, year, id));
+        }
+        return list;
+    }
+
+    static async Task<JsonDocument?> CallAsync(WebSession web, string csrf, string method, string path, string? body, CancellationToken ct, string target = Target)
     {
         var envelope = JsonSerializer.Serialize(new
         {
-            request = new { method, targetService = Target, path, queryParams = "", body },
+            request = new { method, targetService = target, path, queryParams = "", body },
         }, new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
         var resp = await web.PostJsonAsync(new Uri($"{Base}/o/weserve-routing-rest/v1.0/generic"), envelope,
             new Dictionary<string, string> { ["x-csrf-token"] = csrf }, ct);

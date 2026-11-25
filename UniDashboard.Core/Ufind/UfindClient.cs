@@ -19,10 +19,16 @@ public record UfindGroup(
     Dictionary<string, string> Examination, Dictionary<string, string> Preconditions,
     List<string> Lecturers, List<string> Languages, List<UfindExam>? Exams = null);
 
+/// <summary>
+/// One curriculum chapter a course is listed in. <c>Path</c> is the full id chain "a|b|c|d" (programme leader | … | curriculum | … | section);
+/// the 3rd id is the curriculum (<c>vvz_sub.html?path=</c>), the last one the section/module.
+/// </summary>
+public record UfindChapter(string Path, string Category, string Subcategory, string Name);
+
 /// <summary>Static course information from u:find. Serialised as JSON into the DB and diffed for changes.</summary>
 public record UfindCourse(
     string LvNr, string Semester, string Version, string TitleDe, string TitleEn, string TypeCode, string TypeDesc,
-    decimal Ects, decimal Sws, bool Immanent, string? OfferedBy, List<string> Curricula, List<UfindGroup> Groups);
+    decimal Ects, decimal Sws, bool Immanent, string? OfferedBy, List<string> Curricula, List<UfindGroup> Groups, List<UfindChapter>? Chapters = null);
 
 /// <summary>
 /// u:find course catalogue (public, no login): GET m2-ufind.univie.ac.at/courses/{lvnr}/{semester} → XML.
@@ -98,6 +104,12 @@ public class UfindClient(HttpClient http) : ICourseInfoSource
                 ch.Elements("subcategory").FirstOrDefault(e => (string?)e.Attribute(Xml + "lang") == "de")?.Value,
             }.Where(s => !string.IsNullOrWhiteSpace(s)))).Where(s => s.Length > 0).Distinct().ToList() ?? [];
 
+        var chapters = c.Element("chapters")?.Elements("chapter").Select(ch =>
+        {
+            string De(string n) => ch.Elements(n).FirstOrDefault(e => (string?)e.Attribute(Xml + "lang") == "de")?.Value.Trim() ?? "";
+            return new UfindChapter((string?)ch.Attribute("path") ?? "", De("category"), De("subcategory"), De("name"));
+        }).Where(x => x.Path.Length > 0).ToList() ?? [];
+
         var groups = new List<UfindGroup>();
         foreach (var g in c.Element("groups")?.Elements("group") ?? [])
         {
@@ -124,7 +136,7 @@ public class UfindClient(HttpClient http) : ICourseInfoSource
         return new((string?)c.Attribute("id") ?? "", (string?)c.Attribute("when") ?? "", (string?)c.Attribute("version") ?? "",
             Lang("longname", "de"), Lang("longname", "en"), type?.Value ?? "", (string?)type?.Attribute("desc") ?? "",
             Dec(c.Element("ects")?.Value), Dec(c.Element("sws")?.Value), c.Element("immanent")?.Value == "true",
-            c.Element("offeredby")?.Value.Trim(), curricula, groups);
+            c.Element("offeredby")?.Value.Trim(), curricula, groups, chapters);
     }
 
     static List<UfindExam> ParseExams(XElement group)

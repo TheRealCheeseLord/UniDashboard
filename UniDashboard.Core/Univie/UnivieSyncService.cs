@@ -15,8 +15,9 @@ public record UnivieSyncResult(int Enrolments, int Changed, int Notified, string
 /// u:find adds the static course information and is refetched at most every <see cref="UfindRefresh"/>.
 /// Every change (info, status, session moved/changed/removed/added) is snapshotted and optionally toasted.
 /// </summary>
-public class UnivieSyncService(
-    Database db, AppSettings settings, IEnrolmentSource uspace, ICourseInfoSource ufind, INotifier? notifier, bool headless, Action<string>? log = null)
+public partial class UnivieSyncService(
+    Database db, AppSettings settings, IEnrolmentSource uspace, ICourseInfoSource ufind, INotifier? notifier, bool headless, Action<string>? log = null,
+    ICurriculumSource? curriculum = null)
 {
     /// <summary>How long fetched u:find data is considered fresh.</summary>
     public TimeSpan UfindRefresh { get; init; } = TimeSpan.FromHours(6);
@@ -58,6 +59,11 @@ public class UnivieSyncService(
             }
         }
 
+        // Curriculum sections (STEOP, modules…) with their own exams, for the student's own studies.
+        try { var (c, n) = await SyncSectionsAsync(uspace.LastStudies, initial, now, ct); changed += c; notified += n; }
+        catch (Exception e) when (e is HttpRequestException or JsonException)
+        { log?.Invoke("section exams failed: " + e.Message); }
+
         notified += SendExamReminders(now);
 
         // Enrolments u:space no longer lists. Guard: an empty list may be an API hiccup.
@@ -89,7 +95,7 @@ public class UnivieSyncService(
         };
 
         // u:find: only when stale; keep the old data if the fetch fails or the course version is unchanged.
-        if (old?.UfindFetchedAt is not { } at || now - at > UfindRefresh || string.IsNullOrEmpty(old.UfindJson) || !old.UfindJson.Contains("\"Exams\""))
+        if (old?.UfindFetchedAt is not { } at || now - at > UfindRefresh || string.IsNullOrEmpty(old.UfindJson) || !old.UfindJson.Contains("\"Exams\"") || !old.UfindJson.Contains("\"Chapters\""))
         {
             try
             {
@@ -97,7 +103,7 @@ public class UnivieSyncService(
                 if (course is not null)
                 {
                     rec.UfindFetchedAt = now;
-                    if (course.Version != old?.UfindVersion || string.IsNullOrEmpty(old?.UfindJson) || !old.UfindJson.Contains("\"Exams\""))
+                    if (course.Version != old?.UfindVersion || string.IsNullOrEmpty(old?.UfindJson) || !old.UfindJson.Contains("\"Exams\"") || !old.UfindJson.Contains("\"Chapters\""))
                     {
                         rec.UfindVersion = course.Version;
                         rec.UfindJson = JsonSerializer.Serialize(course);
@@ -121,7 +127,7 @@ public class UnivieSyncService(
         var saveExams = firstExams || examEvents.Count > 0 || regChanged;
 
         // Rows stored before exams were parsed gain an "Exams" block once: that is a migration, not a change.
-        var migrating = old is not null && old.UfindJson.Length > 0 && !old.UfindJson.Contains("\"Exams\"");
+        var migrating = old is not null && old.UfindJson.Length > 0 && (!old.UfindJson.Contains("\"Exams\"") || !old.UfindJson.Contains("\"Chapters\""));
         var infoChanged = old is not null && !migrating && old.ContentHash != rec.ContentHash;
         var statusChanged = old is not null && (old.Status != rec.Status || old.WaitlistPosition != rec.WaitlistPosition || !old.Active);
         var anyChange = old is null || infoChanged || events.Count > 0 || examEvents.Count > 0 || regChanged;

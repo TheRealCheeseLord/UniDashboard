@@ -46,7 +46,8 @@ internal static class Program
             var notifier = new ToastNotifier();
             var sync = new SyncService(db, settings, client, notifier, Log);
             sync.Univie = new UniDashboard.Core.Univie.UnivieSyncService(db, settings, new UniDashboard.Core.Uspace.UspaceClient(settings),
-                new UniDashboard.Core.Ufind.UfindClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: true, Log);
+                new UniDashboard.Core.Ufind.UfindClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: true, Log,
+                new UniDashboard.Core.Ufind.CurriculumClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()));
 
             var result = await sync.RunAsync();
             Log($"sync: {result.Assignments} assignments, {result.Changed} changed, {result.Notified} toasts" +

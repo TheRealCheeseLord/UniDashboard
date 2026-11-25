@@ -78,7 +78,8 @@ public partial class App : Application
         var notifier = new AppToastNotifier();
         Sync = new SyncService(Db, Settings, Client, notifier, m => FileLog.Write("app", m));
         Sync.Univie = new UniDashboard.Core.Univie.UnivieSyncService(Db, Settings, new UniDashboard.Core.Uspace.UspaceClient(Settings) { Interactive = loginWindow },
-            new UniDashboard.Core.Ufind.UfindClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: false, m => FileLog.Write("app", m));
+            new UniDashboard.Core.Ufind.UfindClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()), notifier, headless: false, m => FileLog.Write("app", m),
+            new UniDashboard.Core.Ufind.CurriculumClient(UniDashboard.Core.Ufind.UfindClient.CreateHttpClient()));
         GoogleAuth = new UniDashboard.Core.Google.GoogleAuth(_http, GoogleCreds);
         GoogleApi = new UniDashboard.Core.Google.GoogleCalendarClient(_http, (force, ct) => GoogleAuth.GetAccessTokenAsync(force, ct));
         GoogleSync = new UniDashboard.Core.Google.GoogleSyncService(Db, Settings, GoogleApi, null, m => FileLog.Write("app", m));
@@ -88,7 +89,7 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         Window = new MainWindow();
-        Window.Activate();
+        Window.BringToFront();
 
         AppNotificationManager.Default.NotificationInvoked += (_, e) =>
             Window.DispatcherQueue.TryEnqueue(() =>
@@ -116,7 +117,7 @@ public partial class App : Application
         };
         // Also covers the initial launch with a command line
         if (string.IsNullOrEmpty(cmd)) cmd = string.Join(' ', Environment.GetCommandLineArgs().Skip(1));
-        Window?.Activate();
+        Window?.BringToFront();
         Window?.HandleCommandLine(cmd);
     }
 }

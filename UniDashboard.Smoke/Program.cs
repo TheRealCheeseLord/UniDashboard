@@ -49,7 +49,8 @@ if (args.Contains("--univie-sync"))
 {
     using var h = UniDashboard.Core.Ufind.UfindClient.CreateHttpClient();
     var svc = new UniDashboard.Core.Univie.UnivieSyncService(db, settings, new UniDashboard.Core.Uspace.UspaceClient(settings),
-        new UniDashboard.Core.Ufind.UfindClient(h), new ConsoleNotifier(), headless: true, Console.WriteLine);
+        new UniDashboard.Core.Ufind.UfindClient(h), new ConsoleNotifier(), headless: true, Console.WriteLine,
+        new UniDashboard.Core.Ufind.CurriculumClient(h));
     var sw = System.Diagnostics.Stopwatch.StartNew();
     var r = await svc.RunAsync();
     Console.WriteLine($"univie sync: {r.Enrolments} enrolments, {r.Changed} changed, {r.Notified} toasts, error={r.Error ?? "none"} in {sw.Elapsed.TotalSeconds:F1}s");
